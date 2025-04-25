@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fuse Field</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #FFF7E2;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: monospace;
+            overflow: hidden;
+            touch-action: none; /* Prevent default touch actions */
+        }
+        canvas {
+            display: block;
+            image-rendering: pixelated;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        #gameContainer {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            max-width: 800px;
+            max-height: 100vh;
+            aspect-ratio: 5/6;
+            margin: auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        #practiceDrawer {
+            position: absolute;
+            right: -100px;
+            top: 0;
+            width: 80px;
+            height: 100%;
+            background: rgba(246, 240, 228, 0.9);
+            border-left: 4px solid #4d2b17;
+            transition: transform 0.3s ease;
+            cursor: pointer;
+        }
+        #practiceDrawer:hover {
+            transform: translateX(-20px);
+        }
+        #toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            display: none;
+            z-index: 1000;
+        }
+        #uiOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 100;
+            padding: 20px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        #gameStats {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #4d2b17;
+            font-family: monospace;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+        #copyright {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            color: #4d2b17;
+            font-size: 12px;
+            opacity: 0.7;
+            text-align: right;
+            pointer-events: none;
+        }
+        @media (max-width: 768px) {
+            #gameContainer {
+                width: 100vw;
+                height: 100vh;
+                max-width: none;
+                max-height: none;
+                padding: 10px;
+            }
+            #practiceDrawer {
+                right: -60px;
+                width: 60px;
+            }
+            #gameStats {
+                top: 10px;
+                left: 10px;
+                font-size: 14px;
+            }
+            #copyright {
+                font-size: 10px;
+                bottom: 10px;
+                right: 10px;
+            }
+            #uiOverlay {
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        <div id="practiceDrawer"></div>
+        <div id="uiOverlay">
+            <div id="gameStats"></div>
+            <div id="copyright">© 2024 Hangover Games. All rights reserved.</div>
+        </div>
+    </div>
+    <div id="toast"></div>
+
+    <script src="assets.js"></script>
+    <script>
+        // Build: 2024-03-20
+        // Commit: [PLACEHOLDER]
+        
+        // Copyright (c) 2024 Hangover Games. All rights reserved.
+        // This software is protected by copyright law and international treaties.
+        // Unauthorized reproduction or distribution of this software, or any portion of it,
+        // may result in severe civil and criminal penalties, and will be prosecuted
+        // to the maximum extent possible under law.
+
+        // Constants
+        const GRID_WIDTH = 5;
+        const GRID_HEIGHT = 6;
+        const CELL_SIZE = 128;
+        const ORB_COLORS = {
+            1: '#A7D8FF',
+            2: '#8EF3C9',
+            3: '#FF5B5B',
+            4: '#CFA2FF',
+            5: '#FFE97A',
+            6: '#FFB800'
+        };
+
+        // Game state
+        let gameState = {
+            board: Array(GRID_HEIGHT).fill().map(() => Array(GRID_WIDTH).fill(0)),
+            nextOrb: 0,
+            score: 0,
+            moves: 0,
+            maxChain: 0,
+            isPractice: false,
+            isGameOver: false,
+            crystals: 0,
+            highestOrbs: new Set()
+        };
+
+        // Canvas setup
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        let dpr = window.devicePixelRatio || 1;
+
+        function resizeCanvas() {
+            const container = document.getElementById('gameContainer');
+            const rect = container.getBoundingClientRect();
+            
+            // Calculate the maximum possible size while maintaining aspect ratio
+            const maxWidth = Math.min(rect.width, rect.height * (5/6));
+            const maxHeight = Math.min(rect.height, rect.width * (6/5));
+            
+            // Set canvas size to match container size while maintaining aspect ratio
+            canvas.width = maxWidth * dpr;
+            canvas.height = maxHeight * dpr;
+            canvas.style.width = maxWidth + 'px';
+            canvas.style.height = maxHeight + 'px';
+            
+            // Reset transform and scale
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.scale(dpr, dpr);
+            
+            // Calculate padding (5% of the smaller dimension)
+            const padding = Math.min(maxWidth, maxHeight) * 0.05;
+            
+            // Calculate grid dimensions after padding
+            const gridWidth = maxWidth - (padding * 2);
+            const gridHeight = maxHeight - (padding * 2);
+            
+            // Calculate cell sizes based on the grid dimensions
+            const cellWidth = gridWidth / GRID_WIDTH;
+            const cellHeight = gridHeight / GRID_HEIGHT;
+            
+            // Update global dimensions for rendering
+            window.cellWidth = cellWidth;
+            window.cellHeight = cellHeight;
+            window.padding = padding;
+        }
+
+        // Add orientation change handler
+        window.addEventListener('orientationchange', () => {
+            setTimeout(resizeCanvas, 100); // Small delay to ensure proper dimensions
+        });
+
+        // Add touch event handlers for mobile
+        function handleTouchStart(e) {
+            e.preventDefault(); // Prevent default touch behavior
+            handleDragStart(e.touches[0]);
+        }
+
+        function handleTouchMove(e) {
+            e.preventDefault();
+            handleDrag(e.touches[0]);
+        }
+
+        function handleTouchEnd(e) {
+            e.preventDefault();
+            handleDragEnd(e.changedTouches[0]);
+        }
+
+        // Update event listeners to include touch events
+        canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+        canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+        canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+
+        // Asset loading
+        const assets = {};
+        const assetPromises = [];
+        window.assetsLoaded = false;  // Expose to window for testing
+
+        function loadImage(name, src) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => {
+                    assets[name] = img;
+                    resolve();
+                };
+                img.onerror = reject;
+                img.src = src;
+            });
+        }
+
+        // Sprite atlas creation
+        function createSpriteAtlas() {
+            return new Promise((resolve, reject) => {
+                const atlas = document.createElement('canvas');
+                const atlasCtx = atlas.getContext('2d');
+                atlas.width = 1024;
+                atlas.height = 1024;
+
+                // Create a sprite atlas from the Base64 data
+                const atlasImg = new Image();
+                atlasImg.onload = () => {
+                    atlasCtx.drawImage(atlasImg, 0, 0);
+                    assets.atlas = atlas;
+                    resolve();
+                };
+                atlasImg.onerror = reject;
+                atlasImg.src = ASSETS.atlas;
+            });
+        }
+
+        // Audio system
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const audioBuffers = {};
+
+        async function loadAudio(name, base64Data) {
+            const response = await fetch(`data:audio/wav;base64,${base64Data}`);
+            const arrayBuffer = await response.arrayBuffer();
+            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+            audioBuffers[name] = audioBuffer;
+        }
+
+        function playSound(name) {
+            const source = audioContext.createBufferSource();
+            source.buffer = audioBuffers[name];
+            source.connect(audioContext.destination);
+            source.start();
+        }
+
+        // Input handling
+        let isDragging = false;
+        let dragStart = { x: 0, y: 0 };
+        let currentDrag = { x: 0, y: 0 };
+
+        canvas.addEventListener('mousedown', handleDragStart);
+        canvas.addEventListener('touchstart', handleDragStart);
+        canvas.addEventListener('mousemove', handleDrag);
+        canvas.addEventListener('touchmove', handleDrag);
+        canvas.addEventListener('mouseup', handleDragEnd);
+        canvas.addEventListener('touchend', handleDragEnd);
+
+        function handleDragStart(e) {
+            if (gameState.isGameOver) return;
+            isDragging = true;
+            const pos = getEventPosition(e);
+            dragStart = pos;
+            currentDrag = pos;
+        }
+
+        function handleDrag(e) {
+            if (!isDragging) return;
+            currentDrag = getEventPosition(e);
+        }
+
+        function handleDragEnd(e) {
+            if (!isDragging) return;
+            isDragging = false;
+            const pos = getEventPosition(e);
+            handleOrbPlacement(pos);
+        }
+
+        function getEventPosition(e) {
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / (rect.width / canvas.width);
+            const y = (e.clientY - rect.top) / (rect.height / canvas.height);
+            return { x, y };
+        }
+
+        // Game logic
+        function initializeBoard() {
+            const seed = getDailySeed();
+            const rng = new Mulberry32(seed);
+            
+            // Place initial orbs
+            let placedOrbs = 0;
+            while (placedOrbs < 12) {
+                const x = Math.floor(rng.next() * GRID_WIDTH);
+                const y = Math.floor(rng.next() * GRID_HEIGHT);
+                if (gameState.board[y][x] === 0) {
+                    gameState.board[y][x] = Math.floor(rng.next() * 6) + 1;
+                    placedOrbs++;
+                }
+            }
+            
+            generateNextOrb(rng);
+        }
+
+        function getDailySeed() {
+            const today = new Date();
+            const dateStr = today.toISOString().split('T')[0];
+            const hash = sha256(dateStr);
+            return parseInt(hash.substring(0, 8), 16);
+        }
+
+        function generateNextOrb(rng) {
+            if (!rng) {
+                rng = new Mulberry32(getDailySeed());
+            }
+            gameState.nextOrb = Math.floor(rng.next() * 6) + 1;
+        }
+
+        function handleOrbPlacement(pos) {
+            const gridX = Math.floor(pos.x / (canvas.width / GRID_WIDTH));
+            const gridY = Math.floor(pos.y / (canvas.height / GRID_HEIGHT));
+            
+            if (gridX >= 0 && gridX < GRID_WIDTH && 
+                gridY >= 0 && gridY < GRID_HEIGHT && 
+                gameState.board[gridY][gridX] === 0) {
+                
+                gameState.board[gridY][gridX] = gameState.nextOrb;
+                gameState.moves++;
+                
+                const chain = processFusions();
+                gameState.maxChain = Math.max(gameState.maxChain, chain);
+                
+                generateNextOrb();
+                
+                if (isBoardFull()) {
+                    endGame();
+                }
+            }
+        }
+
+        function processFusions() {
+            let chain = 0;
+            let hasFusion = true;
+            
+            while (hasFusion) {
+                hasFusion = false;
+                const fusions = findFusions();
+                
+                if (fusions.length > 0) {
+                    hasFusion = true;
+                    chain++;
+                    
+                    for (const fusion of fusions) {
+                        const { x, y, value } = fusion;
+                        if (value >= 6) {
+                            gameState.board[y][x] = -1; // Crystal
+                            gameState.crystals++;
+                        } else {
+                            gameState.board[y][x] = value + 1;
+                        }
+                        gameState.score += value * value;
+                        gameState.highestOrbs.add(value);
+                    }
+                }
+            }
+            
+            return chain;
+        }
+
+        function findFusions() {
+            const fusions = [];
+            
+            for (let y = 0; y < GRID_HEIGHT; y++) {
+                for (let x = 0; x < GRID_WIDTH; x++) {
+                    const value = gameState.board[y][x];
+                    if (value <= 0) continue;
+                    
+                    const group = findConnectedGroup(x, y, value);
+                    if (group.length >= 3) {
+                        fusions.push(...group);
+                    }
+                }
+            }
+            
+            return fusions;
+        }
+
+        function findConnectedGroup(x, y, value) {
+            const group = [];
+            const visited = new Set();
+            
+            function dfs(x, y) {
+                const key = `${x},${y}`;
+                if (visited.has(key)) return;
+                if (x < 0 || x >= GRID_WIDTH || y < 0 || y >= GRID_HEIGHT) return;
+                if (gameState.board[y][x] !== value) return;
+                
+                visited.add(key);
+                group.push({ x, y, value });
+                
+                dfs(x + 1, y);
+                dfs(x - 1, y);
+                dfs(x, y + 1);
+                dfs(x, y - 1);
+            }
+            
+            dfs(x, y);
+            return group;
+        }
+
+        function isBoardFull() {
+            for (let y = 0; y < GRID_HEIGHT; y++) {
+                for (let x = 0; x < GRID_WIDTH; x++) {
+                    if (gameState.board[y][x] === 0) return false;
+                }
+            }
+            return true;
+        }
+
+        function endGame() {
+            gameState.isGameOver = true;
+            showGameOverScreen();
+        }
+
+        // Rendering
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw background
+            ctx.fillStyle = '#FFF7E2';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Get dimensions from global state
+            const cellWidth = window.cellWidth;
+            const cellHeight = window.cellHeight;
+            const padding = window.padding;
+            
+            // Draw grid using the scaled cell dimensions with padding
+            for (let y = 0; y < GRID_HEIGHT; y++) {
+                for (let x = 0; x < GRID_WIDTH; x++) {
+                    const value = gameState.board[y][x];
+                    const cellX = padding + (x * cellWidth);
+                    const cellY = padding + (y * cellHeight);
+                    
+                    // Draw cell background
+                    ctx.fillStyle = '#F6F0E4';
+                    ctx.strokeStyle = '#4d2b17';
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.roundRect(cellX, cellY, cellWidth, cellHeight, 12);
+                    ctx.fill();
+                    ctx.stroke();
+                    
+                    // Draw orb or crystal
+                    if (value !== 0) {
+                        if (value === -1) {
+                            // Draw crystal
+                            ctx.fillStyle = 'white';
+                            ctx.beginPath();
+                            ctx.arc(cellX + cellWidth/2, cellY + cellHeight/2, 
+                                   Math.min(cellWidth, cellHeight)/2 - 8, 0, Math.PI * 2);
+                            ctx.fill();
+                        } else {
+                            // Draw orb
+                            ctx.fillStyle = ORB_COLORS[value];
+                            ctx.beginPath();
+                            ctx.arc(cellX + cellWidth/2, cellY + cellHeight/2, 
+                                   Math.min(cellWidth, cellHeight)/2 - 8, 0, Math.PI * 2);
+                            ctx.fill();
+                            
+                            // Draw number
+                            ctx.fillStyle = '#4d2b17';
+                            ctx.font = `${Math.min(cellWidth, cellHeight)/4}px monospace`;
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+                            ctx.fillText(value.toString(), 
+                                       cellX + cellWidth/2, 
+                                       cellY + cellHeight/2);
+                        }
+                    }
+                }
+            }
+            
+            // Draw next orb preview
+            if (!gameState.isGameOver) {
+                const previewX = canvas.width / (2 * dpr);
+                const previewY = canvas.height / dpr - padding;
+                
+                ctx.fillStyle = ORB_COLORS[gameState.nextOrb];
+                ctx.beginPath();
+                ctx.arc(previewX, previewY, Math.min(cellWidth, cellHeight)/2, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.fillStyle = '#4d2b17';
+                ctx.font = `${Math.min(cellWidth, cellHeight)/4}px monospace`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(gameState.nextOrb.toString(), previewX, previewY);
+            }
+            
+            // Update game stats in the UI overlay
+            const gameStats = document.getElementById('gameStats');
+            gameStats.innerHTML = `
+                Score: ${gameState.score}<br>
+                Moves: ${gameState.moves}<br>
+                Max Chain: ${gameState.maxChain}
+            `;
+            
+            requestAnimationFrame(render);
+        }
+
+        // Utility functions
+        function sha256(str) {
+            // TODO: Implement SHA-256
+            // For now, return a simple hash
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                const char = str.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash;
+            }
+            return hash.toString(16);
+        }
+
+        class Mulberry32 {
+            constructor(seed) {
+                this.a = seed;
+            }
+            
+            next() {
+                this.a = this.a + 0x6D2B79F5;
+                let t = Math.imul(this.a ^ this.a >>> 15, 1 | this.a);
+                t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+                return ((t ^ t >>> 14) >>> 0) / 4294967296;
+            }
+        }
+
+        // Initialize
+        async function initialize() {
+            try {
+                console.log('Starting asset loading...');
+                
+                // Load assets
+                console.log('Loading sprite atlas...');
+                await createSpriteAtlas();
+                console.log('Sprite atlas loaded');
+
+                console.log('Loading audio assets...');
+                await Promise.all([
+                    loadAudio('background', ASSETS.backgroundMusic),
+                    loadAudio('fusion', ASSETS.fusionSound),
+                    loadAudio('crystal', ASSETS.crystalSound)
+                ]).catch(error => {
+                    console.error('Error loading audio assets:', error);
+                    throw error;
+                });
+                console.log('Audio assets loaded');
+
+                // Initialize game
+                console.log('Initializing game...');
+                window.addEventListener('resize', resizeCanvas);
+                resizeCanvas();
+                initializeBoard();
+                render();
+                console.log('Game initialized');
+
+                // Add click handler to start audio
+                document.addEventListener('click', function startAudio() {
+                    console.log('Starting audio playback...');
+                    // Start background music
+                    audioContext.resume().then(() => {
+                        const source = audioContext.createBufferSource();
+                        source.buffer = audioBuffers.background;
+                        source.connect(audioContext.destination);
+                        source.loop = true;
+                        source.start();
+                        console.log('Audio playback started');
+                    });
+                    document.removeEventListener('click', startAudio);
+                }, { once: true });
+
+                window.assetsLoaded = true;
+                console.log('Assets loaded successfully');
+            } catch (error) {
+                console.error('Failed to initialize game:', error);
+                // Show error message to user
+                const toast = document.getElementById('toast');
+                toast.textContent = 'Failed to load game assets. Please refresh the page.';
+                toast.style.display = 'block';
+                setTimeout(() => {
+                    toast.style.display = 'none';
+                }, 5000);
+                throw error; // Re-throw to ensure the error is caught by the test
+            }
+        }
+
+        // Start initialization
+        initialize();
+
+        // Debug hooks
+        window.gameState = gameState;
+        window.advanceRNG = () => {
+            const rng = new Mulberry32(getDailySeed());
+            return rng.next();
+        };
+    </script>
+</body>
+</html> 
