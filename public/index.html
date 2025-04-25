@@ -31,6 +31,18 @@
             cursor: pointer;
             touch-action: none;
         }
+        .cursor-grab {
+            cursor: grab;
+        }
+        .cursor-grabbing {
+            cursor: grabbing;
+        }
+        .cursor-pointer {
+            cursor: pointer;
+        }
+        .cursor-not-allowed {
+            cursor: not-allowed;
+        }
         #gameContainer {
             position: relative;
             width: 100vw;
@@ -152,6 +164,56 @@
             border-radius: 4px;
             z-index: 3;
         }
+        #gameOver {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 247, 226, 0.95);
+            color: #4d2b17;
+            padding: 20px;
+            border-radius: 8px;
+            border: 4px solid #4d2b17;
+            max-width: 80%;
+            width: 400px;
+            z-index: 1000;
+            font-family: monospace;
+            line-height: 1.5;
+            text-align: center;
+            display: none;
+        }
+        #gameOver h2 {
+            margin-top: 0;
+            color: #4d2b17;
+        }
+        #gameOver p {
+            margin: 10px 0;
+        }
+        #gameOver button {
+            background: #4d2b17;
+            color: #FFF7E2;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: monospace;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        #gameOver button:hover {
+            background: #6d3b27;
+        }
+        #shareString {
+            background: rgba(77, 43, 23, 0.1);
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            word-break: break-all;
+            cursor: pointer;
+        }
+        #shareString:hover {
+            background: rgba(77, 43, 23, 0.2);
+        }
         @media (max-width: 768px) {
             #gameContainer {
                 width: 100vw;
@@ -197,6 +259,17 @@
         <p>Level 6 orbs fuse into crystals, which grant bonus points.</p>
         <p>Try to create the longest chain of fusions!</p>
         <button onclick="document.getElementById('instructions').style.display='none'">Start Playing</button>
+    </div>
+    <div id="gameOver">
+        <h2>Game Over!</h2>
+        <p>Final Score: <span id="finalScore">0</span></p>
+        <p>Moves: <span id="finalMoves">0</span></p>
+        <p>Max Chain: <span id="finalChain">0</span></p>
+        <p>Highest Orbs: <span id="finalOrbs"></span></p>
+        <p>Crystals: <span id="finalCrystals">0</span></p>
+        <div id="shareString"></div>
+        <button onclick="copyShareString()">Copy Share String</button>
+        <button onclick="startNewGame()">Play Again</button>
     </div>
 
     <script src="assets.js"></script>
@@ -362,11 +435,19 @@
                     loadImage('crystal', 'assets/initial/orb_crystal.png'),
                     loadImage('gridCell', 'assets/initial/grid_cell_empty.png'),
                     loadImage('gridHighlight', 'assets/initial/grid_highlight.png'),
-                    loadImage('backdrop', 'assets/initial/backdrop_parchment_panel.png')
+                    loadImage('backdrop', 'assets/initial/backdrop_parchment_panel.png'),
+                    // Load audio files
+                    loadAudio('pop', 'audio/pop.ogg'),
+                    loadAudio('chime', 'audio/chime.ogg'),
+                    loadAudio('chain', 'audio/chain.ogg'),
+                    loadAudio('bell', 'audio/bell.ogg'),
+                    loadAudio('loop', 'audio/loop.ogg')
                 ]);
                 
                 console.log('Assets loaded successfully');
                 window.assetsLoaded = true;
+                // Start background music
+                playBackgroundMusic();
                 return true;
             } catch (error) {
                 console.error('Failed to load assets:', error);
@@ -374,13 +455,11 @@
             }
         }
 
-        // Animation state
-        let animations = [];
-        let screenShake = { x: 0, y: 0, intensity: 0 };
-
         // Audio setup
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
         let audioBuffers = {};
+        let backgroundMusic = null;
+        let isMuted = false;
 
         async function loadAudio(name, src) {
             try {
@@ -393,14 +472,63 @@
             }
         }
 
-        function playSound(name) {
-            if (!audioBuffers[name]) return;
+        function playSound(name, options = {}) {
+            if (!audioBuffers[name] || isMuted) return;
             
             const source = audioContext.createBufferSource();
+            const gainNode = audioContext.createGain();
+            
             source.buffer = audioBuffers[name];
-            source.connect(audioContext.destination);
+            source.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            // Apply volume if specified
+            if (options.volume !== undefined) {
+                gainNode.gain.value = options.volume;
+            }
+            
             source.start();
+            return source;
         }
+
+        function playBackgroundMusic() {
+            if (backgroundMusic) {
+                backgroundMusic.stop();
+            }
+            
+            backgroundMusic = playSound('loop', { volume: 0.3 });
+            backgroundMusic.loop = true;
+        }
+
+        function toggleMute() {
+            isMuted = !isMuted;
+            if (isMuted) {
+                if (backgroundMusic) {
+                    backgroundMusic.stop();
+                    backgroundMusic = null;
+                }
+            } else {
+                playBackgroundMusic();
+            }
+        }
+
+        // Add mute button to UI
+        const muteButton = document.createElement('button');
+        muteButton.innerHTML = '🔊';
+        muteButton.style.position = 'absolute';
+        muteButton.style.top = '20px';
+        muteButton.style.right = '20px';
+        muteButton.style.background = 'none';
+        muteButton.style.border = 'none';
+        muteButton.style.fontSize = '24px';
+        muteButton.style.cursor = 'pointer';
+        muteButton.style.zIndex = '1000';
+        muteButton.onclick = toggleMute;
+        document.getElementById('gameContainer').appendChild(muteButton);
+
+        // Animation state
+        let animations = [];
+        let screenShake = { x: 0, y: 0, intensity: 0 };
 
         // Animation functions
         function addFusionAnimation(x, y, value) {
@@ -642,6 +770,7 @@
             if (!hasEmptyCells) {
                 gameState.isGameOver = true;
                 gameState.isTurnActive = false;
+                showGameOver();
             }
         }
 
@@ -747,21 +876,33 @@
                         hasFusion = true;
                         chainLength++;
                         
+                        // Play fusion sound
+                        playSound('chime');
+                        
                         // Calculate new orb value
                         let newValue = value + 1;
                         if (newValue > 6) {
                             newValue = -1; // Crystal
-                            gameState.crystals++;
-                            playSound('crystal');
-                        } else {
-                            playSound('fusion');
+                            playSound('bell', { volume: 0.5 });
                         }
+                        
+                        // Update board
+                        gameState.board[y][x] = newValue;
+                        gameState.board[y][x + 1] = 0;
+                        gameState.board[y][x + 2] = 0;
                         
                         // Update score
                         gameState.score += value * value;
                         
-                        // Update highest orbs
-                        gameState.highestOrbs.add(value);
+                        // Track highest orb
+                        if (value > 0) {
+                            gameState.highestOrbs.add(value);
+                        }
+                        
+                        // Track crystals
+                        if (newValue === -1) {
+                            gameState.crystals++;
+                        }
                         
                         // Add fusion animation
                         addFusionAnimation(
@@ -769,11 +910,6 @@
                             padding + (y * cellHeight) + cellHeight/2,
                             value
                         );
-                        
-                        // Apply fusion
-                        gameState.board[y][x] = newValue;
-                        gameState.board[y][x + 1] = 0;
-                        gameState.board[y][x + 2] = 0;
                     }
                 }
             }
@@ -787,21 +923,33 @@
                         hasFusion = true;
                         chainLength++;
                         
+                        // Play fusion sound
+                        playSound('chime');
+                        
                         // Calculate new orb value
                         let newValue = value + 1;
                         if (newValue > 6) {
                             newValue = -1; // Crystal
-                            gameState.crystals++;
-                            playSound('crystal');
-                        } else {
-                            playSound('fusion');
+                            playSound('bell', { volume: 0.5 });
                         }
+                        
+                        // Update board
+                        gameState.board[y][x] = newValue;
+                        gameState.board[y + 1][x] = 0;
+                        gameState.board[y + 2][x] = 0;
                         
                         // Update score
                         gameState.score += value * value;
                         
-                        // Update highest orbs
-                        gameState.highestOrbs.add(value);
+                        // Track highest orb
+                        if (value > 0) {
+                            gameState.highestOrbs.add(value);
+                        }
+                        
+                        // Track crystals
+                        if (newValue === -1) {
+                            gameState.crystals++;
+                        }
                         
                         // Add fusion animation
                         addFusionAnimation(
@@ -809,57 +957,38 @@
                             padding + (y * cellHeight) + cellHeight/2,
                             value
                         );
-                        
-                        // Apply fusion
-                        gameState.board[y][x] = newValue;
-                        gameState.board[y + 1][x] = 0;
-                        gameState.board[y + 2][x] = 0;
                     }
                 }
             }
             
-            // Update max chain
-            if (chainLength > gameState.maxChain) {
-                gameState.maxChain = chainLength;
-                // Add screen shake for larger chains
-                addScreenShake(Math.min(chainLength * 2, 10));
-            }
-            
-            // If there was a fusion, check for cascading fusions
+            // If we had a fusion, check for more
             if (hasFusion) {
-                checkFusions();
+                // Play chain sound if multiple fusions
+                if (chainLength > 1) {
+                    playSound('chain', { volume: 0.4 });
+                }
+                
+                // Update max chain
+                gameState.maxChain = Math.max(gameState.maxChain, chainLength);
+                
+                // Add screen shake for large chains
+                if (chainLength > 2) {
+                    addScreenShake(chainLength * 2);
+                }
+                
+                // Check for more fusions after a short delay
+                setTimeout(() => checkFusions(), 100);
             }
-        }
-
-        // Initialize audio
-        async function initializeAudio() {
-            await Promise.all([
-                loadAudio('fusion', 'assets/initial/fusion.mp3'),
-                loadAudio('crystal', 'assets/initial/crystal.mp3'),
-                loadAudio('music', 'assets/initial/music.mp3')
-            ]);
-            
-            // Start background music
-            const musicSource = audioContext.createBufferSource();
-            musicSource.buffer = audioBuffers['music'];
-            musicSource.connect(audioContext.destination);
-            musicSource.loop = true;
-            musicSource.start();
         }
 
         // Initialize the game
         async function initialize() {
             console.log('Starting asset loading...');
             try {
-                // Load game assets first
+                // Load game assets
                 console.log('Loading game assets...');
                 const assets = await loadAssets();
                 console.log('Game assets loaded');
-
-                // Load audio assets
-                console.log('Loading audio assets...');
-                await initializeAudio();
-                console.log('Audio assets loaded');
 
                 // Initialize game state
                 initializeGameState();
@@ -977,6 +1106,57 @@
             e.preventDefault();
             handleMouseUp();
         });
+
+        function showGameOver() {
+            const gameOver = document.getElementById('gameOver');
+            const finalScore = document.getElementById('finalScore');
+            const finalMoves = document.getElementById('finalMoves');
+            const finalChain = document.getElementById('finalChain');
+            const finalOrbs = document.getElementById('finalOrbs');
+            const finalCrystals = document.getElementById('finalCrystals');
+            const shareString = document.getElementById('shareString');
+            
+            // Update stats
+            finalScore.textContent = gameState.score;
+            finalMoves.textContent = gameState.moves;
+            finalChain.textContent = gameState.maxChain;
+            finalOrbs.textContent = Array.from(gameState.highestOrbs).sort((a, b) => b - a).join(', ');
+            finalCrystals.textContent = gameState.crystals;
+            
+            // Generate share string
+            const shareText = generateShareString();
+            shareString.textContent = shareText;
+            
+            // Show game over screen
+            gameOver.style.display = 'block';
+            
+            // Play game over sound
+            playSound('bell', { volume: 0.5 });
+        }
+        
+        function copyShareString() {
+            const shareString = document.getElementById('shareString');
+            navigator.clipboard.writeText(shareString.textContent).then(() => {
+                showToast('Share string copied to clipboard!');
+            });
+        }
+        
+        function startNewGame() {
+            // Hide game over screen
+            document.getElementById('gameOver').style.display = 'none';
+            
+            // Reset game state
+            initializeGameState();
+        }
+        
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.style.display = 'block';
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 2000);
+        }
     </script>
 </body>
 </html> 
