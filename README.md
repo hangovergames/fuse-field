@@ -1,4 +1,4 @@
-# fuse-field
+# hangovergames/fuse-field
 
 Fuse Field is a self-contained, browser-only 2D puzzle game that blends deterministic daily gameplay with the joy of cascading merges. It runs entirely client-side with no server dependencies and is implemented in a single HTML file for maximum portability. Every player receives the same daily puzzle using a deterministic seed generated from the current date, ensuring fairness and comparability without any server interaction.
 
