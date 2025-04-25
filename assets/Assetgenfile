@@ -1,0 +1,60 @@
+MODEL gpt-image-1
+BACKGROUND transparent
+MODERATION low
+QUALITY high
+SIZE 1024x1024
+
+PROMPT Create a crisp top-down 2D sprite on a fully transparent background, rendered at the exact pixel dimensions stated so the artwork aligns perfectly inside the Fuse Field 5×6 grid; use flat pastel colors with a gentle radial highlight and a 1-pixel darker outline for clarity at small sizes; keep edges clean and softly anti-aliased; apply a single overhead noon light so shadows fall concentrically beneath the object and never exceed 10 % opacity; isolate exactly one subject per file, with no elements bleeding outside the canvas; maintain one-pixel stroke weight, identical palette and micro-noise texture across every orb, crystal, grid tile and UI icon so they can be packed into a single atlas without seams or palette clashes.
+PROMPT ---
+
+ASSET orb_1.png A 128×128-pixel level-1 orb: pale-blue (#aee7ff) circle with subtle 5 % lighter inner glow, 1-pixel navy outline, four-pixel-wide specular highlight at 11 o’clock and a centred bold pixelated numeral “1” in dark-brown ink; trimmed precisely to transparency.
+
+ASSET orb_2.png A 128×128-pixel mint-green (#c6ffd3) orb identical in treatment to orb 1, bearing a centred numeral “2”; all other lighting and outline details match for visual consistency.
+
+ASSET orb_3.png A 128×128-pixel cherry-red (#ff6a6a) orb with identical highlight, outline and “3” numeral treatment.
+
+ASSET orb_4.png A 128×128-pixel lavender-violet (#ceadff) orb, numeral “4”, same specular and outline styling.
+
+ASSET orb_5.png A 128×128-pixel lemon-yellow (#ffe867) orb, numeral “5”, consistent shading and outline.
+
+ASSET orb_6.png A 128×128-pixel molten-gold (#ffbe3d) orb, numeral “6”, identical style, the highlight slightly warmer to imply higher energy.
+
+ASSET orb_crystal.png A 128×128-pixel multifaceted diamond sprite formed when fusions exceed level 6: frosted white body with faint cyan-pink rim lights, subtle inner glow and three off-centre sparkle flecks; edges anti-aliased and cropped to transparency.
+
+ASSET grid_cell_empty.png A 128×128-pixel parchment-tan (#f6f0e4) square with 4-pixel-wide rounded dark-brown (#4d2b17) border lines exactly centred on each edge; 12-pixel radiused corners and ultra-fine grain noise across the fill; beyond the border is fully transparent for seamless tiling.
+
+ASSET grid_highlight.png A 128×128-pixel overlay tile used to pulse the active drop position: concentric 2-pixel-wide dashed ring in #ffca78 at 60 % opacity fading toward centre, everything outside the ring transparent.
+
+ASSET particle_pop_ring.png A 64×64-pixel single-frame white ring that expands on fusion: thin 2-pixel circle with 30 % opacity radial blur toward the edge, cropped to transparency.
+
+ASSET particle_sparkle_star.png A 32×32-pixel four-point star used during cascades: sharp central glow with two-pixel tapered arms, anisotropic blur, transparent background.
+
+ASSET ui_button_large.png A 256×64-pixel rounded-rect HUD button: parchment-tan fill, 4-pixel dark-brown outline, subtle inner shadow and centred pixel-font placeholder text “BUTTON”; background transparent outside the shape.
+
+ASSET ui_icon_share.png A 64×64-pixel pixel-style arrow-out-of-square share icon in dark-brown on transparency, stroke width two pixels, corners rounded to match orbs.
+
+ASSET ui_icon_copy.png A 64×64-pixel twin-paper clipboard icon, dark-brown on transparency, same line weight as ui_icon_share for atlas harmony.
+
+ASSET ui_icon_sound_on.png A 64×64-pixel speaker cone with three emanating sound waves, matching stroke style; full transparency elsewhere.
+
+ASSET ui_icon_sound_off.png A 64×64-pixel speaker cone crossed by a diagonal mute slash, identical visual weight to the sound-on variant.
+
+ASSET ui_icon_practice.png A 64×64-pixel infinity symbol inside a circle, dark-brown stroke, used for the “Practice” side tab.
+
+ASSET banner_daily_label.png A 320×64-pixel ribbon reading “DAILY PUZZLE” in the same pixel font, parchment-tan fill, dark-brown outline, small drop shadow, left and right tails notched and trimmed to transparency.
+
+ASSET banner_practice_label.png A 320×64-pixel ribbon identical in styling to banner_daily_label but reading “PRACTICE”.
+
+ASSET backdrop_parchment_panel.png A 640×800-pixel parchment-paper rectangle sized to underlay the full 5×6 grid; softly mottled tan texture, darker vignette edges, no border; everything outside the rectangle fully transparent so the panel can be centred responsively.
+
+ASSET overlay_screen_flash.png A 1024×1024-pixel full-screen white overlay at 0 % centre opacity grading to 40 % at edges, used for subtle cascade flashes; outside area transparent to avoid atlas waste.
+
+ASSET title_logo.png A 512×128-pixel word-mark “FUSE FIELD” in chunky retro pixel lettering (#4d2b17), slight 1-pixel drop shadow and molten-gold gradient across glyph tops; background transparent.
+
+ASSET touch_hint_swipe.png A 256×256-pixel two-frame sprite sheet (128 px per frame) showing a ghosted finger icon swiping an orb into a grid cell: first frame finger above orb, second frame finger centred on cell; both frames share identical background transparency.
+
+ASSET promo_social_card.png A 1200×630-pixel OpenGraph promotional card: parchment backdrop, centred title_logo, faint grid in background and three sample orbs scattered diagonally; entire canvas opaque so it can be exported as PNG/JPG, with rounded 16-pixel corner mask.
+
+ASSET favicon_32.png A 32×32-pixel favicon featuring a level-3 cherry-red orb cropped tight with minimal outline and highlight, ready for web embedding; no outside transparency padding.
+
+ASSET manifest_icon_512.png A 512×512-pixel PWA install icon: stacked trio of orbs (levels 2, 3, 4) overlapping on parchment circle, subtle drop shadow, full canvas opaque for mobile icon clarity.
