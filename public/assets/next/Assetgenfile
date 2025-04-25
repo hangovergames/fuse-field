@@ -1,0 +1,62 @@
+MODEL gpt-image-1
+BACKGROUND transparent
+MODERATION low
+QUALITY high
+SIZE 1024x1024
+
+PROMPT Create flat 2-D cartoon sprites in a bright pastel palette with soft-glow lighting and subtle 2 % micro-noise texture. Use anti-aliased edges and a gentle top-down highlight for a slightly glossy, “juicy” look. Give every sprite a 1-pixel darker outline for clarity at small sizes. Maintain one-pixel stroke weight, identical palette, highlight direction, and noise treatment across all assets so they pack seamlessly into a single atlas. Supply fully-transparent backgrounds unless the description calls for an opaque canvas.
+PROMPT ---
+
+ASSET orb_1.png A 64 × 64-pixel level-1 orb: shiny pastel-coral sphere (#ff9c7d) with a soft inner glow, 2-pixel specular band starting at 11 o’clock, subtle microtexture, 1-pixel navy outline, and centred bold pixel-font numeral “1” in dark-brown (#4d2b17); cropped precisely to transparency.
+
+ASSET orb_2.png A 64 × 64-pixel mint-blue orb (#aee7ff) identical in treatment to orb 1, bearing centred numeral “2”.
+
+ASSET orb_3.png A 64 × 64-pixel pastel mint-green orb (#c6ffd3) with matching highlight, outline and centred numeral “3”.
+
+ASSET orb_4.png A 64 × 64-pixel sunny pastel-yellow orb (#ffe867) with identical styling and numeral “4”.
+
+ASSET orb_5.png A 64 × 64-pixel pastel-pink orb (#ffb6c1) with matching specular band and centred numeral “5”.
+
+ASSET orb_6.png A 64 × 64-pixel lavender-violet orb (#ceadff) with the same treatment and numeral “6”.
+
+ASSET orb_crystal.png A 64 × 64-pixel faceted teal crystal: frosted-white body tinted pale-teal (#d2ffff) with cyan–magenta rim lights, subtle inner glow and three off-centre sparkle flecks; crisp anti-aliased edges, transparent background.
+
+ASSET grid_cell_empty.png A 64 × 64-pixel parchment-tan (#f6f0e4) square grid tile with 4-pixel rounded dark-brown (#4d2b17) border perfectly centred on each edge, 2-pixel inner bevel shadow, 12-pixel corner radius and ultra-fine grain noise; beyond the border is fully transparent.
+
+ASSET grid_highlight.png A 64 × 64-pixel overlay tile: concentric 2-pixel dashed ring in pastel-yellow (#ffca78) at 60 % opacity, fading towards centre; transparent elsewhere.
+
+ASSET particle_pop_ring.png A 64 × 64-pixel single-frame white ring used on fusion: thin 2-pixel circle with 30 %-opacity radial blur feathering outward; transparent background.
+
+ASSET particle_sparkle_star.png A 32 × 32-pixel four-point pastel star for cascades: sharp central glow, 2-pixel tapered arms, soft anisotropic blur; transparent background.
+
+ASSET ui_button_large.png A 200 × 80-pixel pill-shaped “Play” button: pastel-green fill (#b6ffd6) with soft vertical gradient, subtle outer glow, centred white play triangle, 4-pixel dark-brown outline and gentle inner shadow; background outside the shape transparent.
+
+ASSET ui_button_practice.png A 150 × 40-pixel rounded-rect “Practice” button: pastel-blue fill (#bfe1ff), soft outer glow, centred white pixel-font text “PRACTICE”, 3-pixel dark-brown outline; transparent beyond the shape.
+
+ASSET ui_icon_share.png A 64 × 64-pixel arrow-out-of-square share icon in dark-brown, 2-pixel stroke, rounded corners; transparent background.
+
+ASSET ui_icon_copy.png A 64 × 64-pixel twin-paper clipboard icon in dark-brown, matching 2-pixel stroke; transparent background.
+
+ASSET ui_icon_sound_on.png A 64 × 64-pixel speaker cone with three emanating sound waves, dark-brown 2-pixel stroke; transparent elsewhere.
+
+ASSET ui_icon_sound_off.png A 64 × 64-pixel speaker cone crossed by a diagonal mute slash, identical weight and style to ui_icon_sound_on.
+
+ASSET ui_icon_practice.png A 64 × 64-pixel infinity symbol inside a circle, dark-brown 2-pixel stroke; transparent background.
+
+ASSET banner_daily_label.png A 320 × 64-pixel ribbon reading “DAILY PUZZLE” in pixel font, parchment-tan fill, 4-pixel dark-brown outline, subtle drop shadow, notched tails; transparent outside the ribbon.
+
+ASSET banner_practice_label.png A 320 × 64-pixel ribbon identical to banner_daily_label but reading “PRACTICE”.
+
+ASSET backdrop_parchment_panel.png A 640 × 800-pixel parchment-paper rectangle to underlay the 5×6 grid: softly mottled tan texture, darker vignette edges, faint paper creases; no border; fully transparent outside the rectangle.
+
+ASSET overlay_screen_flash.png A 1024 × 1024-pixel full-screen radial flash: centre 0 % opacity white fading to 40 % at edges; transparent beyond gradient.
+
+ASSET title_logo.png A 800 × 200-pixel word-mark “FUSE FIELD” in chunky rounded pixel lettering (#4d2b17) with subtle 1-pixel drop shadow and molten-gold gradient along glyph tops; transparent background.
+
+ASSET touch_hint_swipe.png A 256 × 256-pixel two-frame sprite sheet (128 × 256 px layout): frame 1 shows a translucent hand above an orb, frame 2 shows the hand centred on a grid cell; pastel outline with soft blur; shared transparent background.
+
+ASSET promo_social_card.png A 1200 × 630-pixel OpenGraph card: cream parchment backdrop, centred title_logo, faint grid pattern, three sample orbs scattered diagonally; 16-pixel rounded-corner mask; full-canvas opaque PNG/JPG.
+
+ASSET favicon_32.png A 32 × 32-pixel tightly-cropped pastel-yellow orb (level 4) with minimal outline and highlight; no outside padding; transparent background.
+
+ASSET manifest_icon_512.png A 512 × 512-pixel PWA icon: stacked trio of orbs (levels 2, 3, 4) overlapping on a parchment-tan circle with subtle drop shadow; full-canvas opaque.

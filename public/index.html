@@ -23,20 +23,29 @@
             width: 100%;
             height: 100%;
             object-fit: contain;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1;
+            cursor: pointer;
+            touch-action: none;
         }
         #gameContainer {
             position: relative;
-            width: 100%;
+            width: 100vw;
             height: 100vh;
             max-width: 800px;
             max-height: 100vh;
-            aspect-ratio: 5/6;
+            aspect-ratio: 5/7;
             margin: auto;
             display: flex;
             justify-content: center;
             align-items: center;
             padding: 20px;
             box-sizing: border-box;
+            overflow: hidden;
+            background: #FFF7E2;
         }
         #practiceDrawer {
             position: absolute;
@@ -64,6 +73,44 @@
             display: none;
             z-index: 1000;
         }
+        #instructions {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 247, 226, 0.95);
+            color: #4d2b17;
+            padding: 20px;
+            border-radius: 8px;
+            border: 4px solid #4d2b17;
+            max-width: 80%;
+            width: 400px;
+            z-index: 1000;
+            font-family: monospace;
+            line-height: 1.5;
+            text-align: center;
+        }
+        #instructions h2 {
+            margin-top: 0;
+            color: #4d2b17;
+        }
+        #instructions p {
+            margin: 10px 0;
+        }
+        #instructions button {
+            background: #4d2b17;
+            color: #FFF7E2;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: monospace;
+            font-size: 16px;
+            margin-top: 20px;
+        }
+        #instructions button:hover {
+            background: #6d3b27;
+        }
         #uiOverlay {
             position: absolute;
             top: 0;
@@ -71,7 +118,7 @@
             right: 0;
             bottom: 0;
             pointer-events: none;
-            z-index: 100;
+            z-index: 2;
             padding: 20px;
             box-sizing: border-box;
             display: flex;
@@ -86,6 +133,10 @@
             font-family: monospace;
             font-size: 16px;
             line-height: 1.5;
+            background: rgba(255, 247, 226, 0.8);
+            padding: 10px;
+            border-radius: 4px;
+            z-index: 3;
         }
         #copyright {
             position: absolute;
@@ -96,6 +147,10 @@
             opacity: 0.7;
             text-align: right;
             pointer-events: none;
+            background: rgba(255, 247, 226, 0.8);
+            padding: 5px;
+            border-radius: 4px;
+            z-index: 3;
         }
         @media (max-width: 768px) {
             #gameContainer {
@@ -135,6 +190,14 @@
         </div>
     </div>
     <div id="toast"></div>
+    <div id="instructions">
+        <h2>How to Play Fuse Field</h2>
+        <p>Drag orbs to empty cells to create matches!</p>
+        <p>When three or more identical orbs are adjacent, they fuse into a higher level orb.</p>
+        <p>Level 6 orbs fuse into crystals, which grant bonus points.</p>
+        <p>Try to create the longest chain of fusions!</p>
+        <button onclick="document.getElementById('instructions').style.display='none'">Start Playing</button>
+    </div>
 
     <script src="assets.js"></script>
     <script>
@@ -160,6 +223,31 @@
             6: '#FFB800'
         };
 
+        // RNG implementation
+        class Mulberry32 {
+            constructor(seed) {
+                this.seed = seed;
+            }
+            
+            next() {
+                let t = this.seed += 0x6D2B79F5;
+                t = Math.imul(t ^ t >>> 15, t | 1);
+                t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+                return ((t ^ t >>> 14) >>> 0) / 4294967296;
+            }
+        }
+
+        function getDailySeed() {
+            const now = new Date();
+            const year = now.getUTCFullYear();
+            const month = now.getUTCMonth();
+            const day = now.getUTCDate();
+            return year * 10000 + month * 100 + day;
+        }
+
+        // Initialize RNG
+        const rng = new Mulberry32(getDailySeed());
+
         // Game state
         let gameState = {
             board: Array(GRID_HEIGHT).fill().map(() => Array(GRID_WIDTH).fill(0)),
@@ -170,80 +258,61 @@
             isPractice: false,
             isGameOver: false,
             crystals: 0,
-            highestOrbs: new Set()
+            highestOrbs: new Set(),
+            currentTurn: 0,
+            isTurnActive: false
         };
 
         // Canvas setup
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         let dpr = window.devicePixelRatio || 1;
+        let assets = {};
 
+        // Set canvas dimensions
         function resizeCanvas() {
             const container = document.getElementById('gameContainer');
-            const rect = container.getBoundingClientRect();
+            const containerWidth = container.clientWidth;
+            const containerHeight = container.clientHeight;
             
-            // Calculate the maximum possible size while maintaining aspect ratio
-            const maxWidth = Math.min(rect.width, rect.height * (5/6));
-            const maxHeight = Math.min(rect.height, rect.width * (6/5));
+            // Calculate cell size based on container dimensions and grid aspect ratio
+            const gridAspectRatio = GRID_WIDTH / GRID_HEIGHT;
+            let cellWidth, cellHeight;
             
-            // Set canvas size to match container size while maintaining aspect ratio
-            canvas.width = maxWidth * dpr;
-            canvas.height = maxHeight * dpr;
-            canvas.style.width = maxWidth + 'px';
-            canvas.style.height = maxHeight + 'px';
+            // Calculate maximum available height for the grid (leaving space for next orb)
+            const maxGridHeight = containerHeight * 0.7; // Use 70% of container height
             
-            // Reset transform and scale
-            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            if (containerWidth / maxGridHeight > gridAspectRatio) {
+                // Container is wider than grid aspect ratio
+                cellHeight = maxGridHeight / GRID_HEIGHT;
+                cellWidth = cellHeight;
+            } else {
+                // Container is taller than grid aspect ratio
+                cellWidth = containerWidth / GRID_WIDTH;
+                cellHeight = cellWidth;
+            }
+            
+            // Set canvas size (add extra height for next orb preview)
+            const extraHeight = cellHeight * 1.5; // Add 1.5 cell heights for the preview
+            canvas.width = cellWidth * GRID_WIDTH * dpr;
+            canvas.height = (cellHeight * GRID_HEIGHT + extraHeight) * dpr;
+            
+            // Scale canvas for high DPI displays
+            canvas.style.width = `${cellWidth * GRID_WIDTH}px`;
+            canvas.style.height = `${cellHeight * GRID_HEIGHT + extraHeight}px`;
+            
+            // Scale context
             ctx.scale(dpr, dpr);
             
-            // Calculate padding (5% of the smaller dimension)
-            const padding = Math.min(maxWidth, maxHeight) * 0.05;
-            
-            // Calculate grid dimensions after padding
-            const gridWidth = maxWidth - (padding * 2);
-            const gridHeight = maxHeight - (padding * 2);
-            
-            // Calculate cell sizes based on the grid dimensions
-            const cellWidth = gridWidth / GRID_WIDTH;
-            const cellHeight = gridHeight / GRID_HEIGHT;
-            
-            // Update global dimensions for rendering
+            // Store dimensions for rendering
             window.cellWidth = cellWidth;
             window.cellHeight = cellHeight;
-            window.padding = padding;
+            window.padding = Math.min(cellWidth, cellHeight) * 0.1; // 10% of cell size
+            window.maxWidth = cellWidth * GRID_WIDTH;
+            window.maxHeight = cellHeight * GRID_HEIGHT;
         }
 
-        // Add orientation change handler
-        window.addEventListener('orientationchange', () => {
-            setTimeout(resizeCanvas, 100); // Small delay to ensure proper dimensions
-        });
-
-        // Add touch event handlers for mobile
-        function handleTouchStart(e) {
-            e.preventDefault(); // Prevent default touch behavior
-            handleDragStart(e.touches[0]);
-        }
-
-        function handleTouchMove(e) {
-            e.preventDefault();
-            handleDrag(e.touches[0]);
-        }
-
-        function handleTouchEnd(e) {
-            e.preventDefault();
-            handleDragEnd(e.changedTouches[0]);
-        }
-
-        // Update event listeners to include touch events
-        canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
-        canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
-        canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
-
-        // Asset loading
-        const assets = {};
-        const assetPromises = [];
-        window.assetsLoaded = false;  // Expose to window for testing
-
+        // Function to load an image
         function loadImage(name, src) {
             return new Promise((resolve, reject) => {
                 const img = new Image();
@@ -256,234 +325,190 @@
             });
         }
 
-        // Sprite atlas creation
-        function createSpriteAtlas() {
-            return new Promise((resolve, reject) => {
-                const atlas = document.createElement('canvas');
-                const atlasCtx = atlas.getContext('2d');
-                atlas.width = 1024;
-                atlas.height = 1024;
-
-                // Create a sprite atlas from the Base64 data
-                const atlasImg = new Image();
-                atlasImg.onload = () => {
-                    atlasCtx.drawImage(atlasImg, 0, 0);
-                    assets.atlas = atlas;
-                    resolve();
-                };
-                atlasImg.onerror = reject;
-                atlasImg.src = ASSETS.atlas;
-            });
+        // Function to draw an image
+        function drawImage(name, x, y, width, height) {
+            if (!assets[name]) return;
+            // Since all assets are 1024x1024, we need to maintain 1:1 aspect ratio
+            const size = Math.min(width, height);
+            ctx.drawImage(assets[name], x, y, size, size);
         }
 
-        // Audio system
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const audioBuffers = {};
+        // Function to draw an image centered
+        function drawImageCentered(name, centerX, centerY, size) {
+            if (!assets[name]) return;
+            const x = centerX - size / 2;
+            const y = centerY - size / 2;
+            drawImage(name, x, y, size, size);
+        }
 
-        async function loadAudio(name, base64Data) {
-            const response = await fetch(`data:audio/wav;base64,${base64Data}`);
-            const arrayBuffer = await response.arrayBuffer();
-            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-            audioBuffers[name] = audioBuffer;
+        // Function to draw an image with aspect ratio maintained
+        function drawImageAspect(name, x, y, maxWidth, maxHeight) {
+            if (!assets[name]) return;
+            // Since all assets are 1024x1024, we can use a 1:1 aspect ratio
+            const size = Math.min(maxWidth, maxHeight);
+            drawImage(name, x, y, size, size);
+        }
+
+        // Asset loading
+        async function loadAssets() {
+            try {
+                // Load orbs
+                for (let i = 1; i <= 6; i++) {
+                    await loadImage(`orb_${i}`, `assets/initial/orb_${i}.png`);
+                }
+                
+                // Load other assets
+                await Promise.all([
+                    loadImage('crystal', 'assets/initial/orb_crystal.png'),
+                    loadImage('gridCell', 'assets/initial/grid_cell_empty.png'),
+                    loadImage('gridHighlight', 'assets/initial/grid_highlight.png'),
+                    loadImage('backdrop', 'assets/initial/backdrop_parchment_panel.png')
+                ]);
+                
+                console.log('Assets loaded successfully');
+                window.assetsLoaded = true;
+                return true;
+            } catch (error) {
+                console.error('Failed to load assets:', error);
+                return false;
+            }
+        }
+
+        // Animation state
+        let animations = [];
+        let screenShake = { x: 0, y: 0, intensity: 0 };
+
+        // Audio setup
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        let audioBuffers = {};
+
+        async function loadAudio(name, src) {
+            try {
+                const response = await fetch(src);
+                const arrayBuffer = await response.arrayBuffer();
+                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                audioBuffers[name] = audioBuffer;
+            } catch (error) {
+                console.error(`Failed to load audio ${name}:`, error);
+            }
         }
 
         function playSound(name) {
+            if (!audioBuffers[name]) return;
+            
             const source = audioContext.createBufferSource();
             source.buffer = audioBuffers[name];
             source.connect(audioContext.destination);
             source.start();
         }
 
-        // Input handling
-        let isDragging = false;
-        let dragStart = { x: 0, y: 0 };
-        let currentDrag = { x: 0, y: 0 };
-
-        canvas.addEventListener('mousedown', handleDragStart);
-        canvas.addEventListener('touchstart', handleDragStart);
-        canvas.addEventListener('mousemove', handleDrag);
-        canvas.addEventListener('touchmove', handleDrag);
-        canvas.addEventListener('mouseup', handleDragEnd);
-        canvas.addEventListener('touchend', handleDragEnd);
-
-        function handleDragStart(e) {
-            if (gameState.isGameOver) return;
-            isDragging = true;
-            const pos = getEventPosition(e);
-            dragStart = pos;
-            currentDrag = pos;
+        // Animation functions
+        function addFusionAnimation(x, y, value) {
+            animations.push({
+                type: 'fusion',
+                x: x,
+                y: y,
+                value: value,
+                progress: 0,
+                duration: 0.3
+            });
         }
 
-        function handleDrag(e) {
-            if (!isDragging) return;
-            currentDrag = getEventPosition(e);
+        function addScreenShake(intensity) {
+            screenShake.intensity = intensity;
         }
 
-        function handleDragEnd(e) {
-            if (!isDragging) return;
-            isDragging = false;
-            const pos = getEventPosition(e);
-            handleOrbPlacement(pos);
-        }
+        function updateAnimations(deltaTime) {
+            // Update fusion animations
+            animations = animations.filter(anim => {
+                anim.progress += deltaTime;
+                return anim.progress < anim.duration;
+            });
 
-        function getEventPosition(e) {
-            const rect = canvas.getBoundingClientRect();
-            const x = (e.clientX - rect.left) / (rect.width / canvas.width);
-            const y = (e.clientY - rect.top) / (rect.height / canvas.height);
-            return { x, y };
-        }
-
-        // Game logic
-        function initializeBoard() {
-            const seed = getDailySeed();
-            const rng = new Mulberry32(seed);
-            
-            // Place initial orbs
-            let placedOrbs = 0;
-            while (placedOrbs < 12) {
-                const x = Math.floor(rng.next() * GRID_WIDTH);
-                const y = Math.floor(rng.next() * GRID_HEIGHT);
-                if (gameState.board[y][x] === 0) {
-                    gameState.board[y][x] = Math.floor(rng.next() * 6) + 1;
-                    placedOrbs++;
-                }
-            }
-            
-            generateNextOrb(rng);
-        }
-
-        function getDailySeed() {
-            const today = new Date();
-            const dateStr = today.toISOString().split('T')[0];
-            const hash = sha256(dateStr);
-            return parseInt(hash.substring(0, 8), 16);
-        }
-
-        function generateNextOrb(rng) {
-            if (!rng) {
-                rng = new Mulberry32(getDailySeed());
-            }
-            gameState.nextOrb = Math.floor(rng.next() * 6) + 1;
-        }
-
-        function handleOrbPlacement(pos) {
-            const gridX = Math.floor(pos.x / (canvas.width / GRID_WIDTH));
-            const gridY = Math.floor(pos.y / (canvas.height / GRID_HEIGHT));
-            
-            if (gridX >= 0 && gridX < GRID_WIDTH && 
-                gridY >= 0 && gridY < GRID_HEIGHT && 
-                gameState.board[gridY][gridX] === 0) {
-                
-                gameState.board[gridY][gridX] = gameState.nextOrb;
-                gameState.moves++;
-                
-                const chain = processFusions();
-                gameState.maxChain = Math.max(gameState.maxChain, chain);
-                
-                generateNextOrb();
-                
-                if (isBoardFull()) {
-                    endGame();
-                }
+            // Update screen shake
+            if (screenShake.intensity > 0) {
+                screenShake.x = (Math.random() - 0.5) * screenShake.intensity;
+                screenShake.y = (Math.random() - 0.5) * screenShake.intensity;
+                screenShake.intensity *= 0.9;
+            } else {
+                screenShake.x = 0;
+                screenShake.y = 0;
             }
         }
 
-        function processFusions() {
-            let chain = 0;
-            let hasFusion = true;
+        // Share string generation
+        function generateShareString() {
+            const highestOrbs = Array.from(gameState.highestOrbs).sort((a, b) => b - a);
+            const orbEmojis = {
+                1: '🔵',
+                2: '🟢',
+                3: '🔴',
+                4: '🟣',
+                5: '🟡',
+                6: '✨'
+            };
             
-            while (hasFusion) {
-                hasFusion = false;
-                const fusions = findFusions();
-                
-                if (fusions.length > 0) {
-                    hasFusion = true;
-                    chain++;
-                    
-                    for (const fusion of fusions) {
-                        const { x, y, value } = fusion;
-                        if (value >= 6) {
-                            gameState.board[y][x] = -1; // Crystal
-                            gameState.crystals++;
-                        } else {
-                            gameState.board[y][x] = value + 1;
-                        }
-                        gameState.score += value * value;
-                        gameState.highestOrbs.add(value);
-                    }
-                }
+            const orbString = highestOrbs.map(orb => orbEmojis[orb]).join('');
+            const crystalString = '✨'.repeat(gameState.crystals);
+            
+            return `Fuse Field — ${gameState.moves} moves — ${gameState.score} pts ${orbString}${crystalString}`;
+        }
+
+        // Practice mode
+        function togglePracticeMode() {
+            gameState.isPractice = !gameState.isPractice;
+            if (gameState.isPractice) {
+                // Generate a new random board for practice
+                initializeGameState();
+            } else {
+                // Reset to daily board
+                initializeGameState();
             }
-            
-            return chain;
         }
 
-        function findFusions() {
-            const fusions = [];
-            
-            for (let y = 0; y < GRID_HEIGHT; y++) {
-                for (let x = 0; x < GRID_WIDTH; x++) {
-                    const value = gameState.board[y][x];
-                    if (value <= 0) continue;
-                    
-                    const group = findConnectedGroup(x, y, value);
-                    if (group.length >= 3) {
-                        fusions.push(...group);
-                    }
-                }
-            }
-            
-            return fusions;
+        // Game loop
+        let lastTime = 0;
+        function gameLoop(timestamp) {
+            const deltaTime = (timestamp - lastTime) / 1000;
+            lastTime = timestamp;
+
+            // Update animations
+            updateAnimations(deltaTime);
+
+            // Render the game
+            render();
+
+            // Request next frame
+            requestAnimationFrame(gameLoop);
         }
 
-        function findConnectedGroup(x, y, value) {
-            const group = [];
-            const visited = new Set();
-            
-            function dfs(x, y) {
-                const key = `${x},${y}`;
-                if (visited.has(key)) return;
-                if (x < 0 || x >= GRID_WIDTH || y < 0 || y >= GRID_HEIGHT) return;
-                if (gameState.board[y][x] !== value) return;
-                
-                visited.add(key);
-                group.push({ x, y, value });
-                
-                dfs(x + 1, y);
-                dfs(x - 1, y);
-                dfs(x, y + 1);
-                dfs(x, y - 1);
-            }
-            
-            dfs(x, y);
-            return group;
-        }
-
-        function isBoardFull() {
-            for (let y = 0; y < GRID_HEIGHT; y++) {
-                for (let x = 0; x < GRID_WIDTH; x++) {
-                    if (gameState.board[y][x] === 0) return false;
-                }
-            }
-            return true;
-        }
-
-        function endGame() {
-            gameState.isGameOver = true;
-            showGameOverScreen();
-        }
-
-        // Rendering
         function render() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // Draw background
-            ctx.fillStyle = '#FFF7E2';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            // Apply screen shake
+            ctx.save();
+            ctx.translate(screenShake.x, screenShake.y);
             
             // Get dimensions from global state
             const cellWidth = window.cellWidth;
             const cellHeight = window.cellHeight;
             const padding = window.padding;
+            const maxWidth = window.maxWidth;
+            const maxHeight = window.maxHeight;
+            
+            // Calculate grid area
+            const gridStartY = padding;
+            const gridEndY = gridStartY + (GRID_HEIGHT * cellHeight);
+            
+            // Draw backdrop with proper alignment
+            const backdropSize = Math.max(maxWidth, maxHeight) + (padding * 2);
+            drawImageAspect(
+                'backdrop',
+                padding,
+                padding,
+                backdropSize,
+                backdropSize
+            );
             
             // Draw grid using the scaled cell dimensions with padding
             for (let y = 0; y < GRID_HEIGHT; y++) {
@@ -493,60 +518,110 @@
                     const cellY = padding + (y * cellHeight);
                     
                     // Draw cell background
-                    ctx.fillStyle = '#F6F0E4';
-                    ctx.strokeStyle = '#4d2b17';
-                    ctx.lineWidth = 4;
-                    ctx.beginPath();
-                    ctx.roundRect(cellX, cellY, cellWidth, cellHeight, 12);
-                    ctx.fill();
-                    ctx.stroke();
+                    drawImage('gridCell', cellX, cellY, cellWidth, cellHeight);
                     
                     // Draw orb or crystal
                     if (value !== 0) {
                         if (value === -1) {
                             // Draw crystal
-                            ctx.fillStyle = 'white';
-                            ctx.beginPath();
-                            ctx.arc(cellX + cellWidth/2, cellY + cellHeight/2, 
-                                   Math.min(cellWidth, cellHeight)/2 - 8, 0, Math.PI * 2);
-                            ctx.fill();
+                            drawImageCentered(
+                                'crystal',
+                                cellX + cellWidth/2,
+                                cellY + cellHeight/2,
+                                Math.min(cellWidth, cellHeight) * 0.8
+                            );
                         } else {
                             // Draw orb
-                            ctx.fillStyle = ORB_COLORS[value];
-                            ctx.beginPath();
-                            ctx.arc(cellX + cellWidth/2, cellY + cellHeight/2, 
-                                   Math.min(cellWidth, cellHeight)/2 - 8, 0, Math.PI * 2);
-                            ctx.fill();
-                            
-                            // Draw number
-                            ctx.fillStyle = '#4d2b17';
-                            ctx.font = `${Math.min(cellWidth, cellHeight)/4}px monospace`;
-                            ctx.textAlign = 'center';
-                            ctx.textBaseline = 'middle';
-                            ctx.fillText(value.toString(), 
-                                       cellX + cellWidth/2, 
-                                       cellY + cellHeight/2);
+                            drawImageCentered(
+                                `orb_${value}`,
+                                cellX + cellWidth/2,
+                                cellY + cellHeight/2,
+                                Math.min(cellWidth, cellHeight) * 0.8
+                            );
                         }
+                    } else {
+                        // Draw empty cell number
+                        ctx.fillStyle = '#4d2b17';
+                        ctx.font = `${Math.min(cellWidth, cellHeight) * 0.3}px monospace`;
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(
+                            `${x + 1}${y + 1}`,
+                            cellX + cellWidth/2,
+                            cellY + cellHeight/2
+                        );
                     }
                 }
             }
             
-            // Draw next orb preview
-            if (!gameState.isGameOver) {
-                const previewX = canvas.width / (2 * dpr);
-                const previewY = canvas.height / dpr - padding;
+            // Draw next orb preview below the grid
+            if (!gameState.isGameOver && gameState.isTurnActive) {
+                const previewX = maxWidth / 2;
+                const previewY = gridEndY + cellHeight;
+                const previewSize = Math.min(cellWidth, cellHeight) * 0.8;
                 
-                ctx.fillStyle = ORB_COLORS[gameState.nextOrb];
+                // Draw a background for the next orb
+                ctx.fillStyle = 'rgba(255, 247, 226, 0.8)';
                 ctx.beginPath();
-                ctx.arc(previewX, previewY, Math.min(cellWidth, cellHeight)/2, 0, Math.PI * 2);
+                ctx.arc(previewX, previewY, previewSize * 0.6, 0, Math.PI * 2);
                 ctx.fill();
                 
+                // Draw "Next Orb" text
                 ctx.fillStyle = '#4d2b17';
-                ctx.font = `${Math.min(cellWidth, cellHeight)/4}px monospace`;
+                ctx.font = `${Math.min(cellWidth, cellHeight) * 0.2}px monospace`;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                ctx.fillText(gameState.nextOrb.toString(), previewX, previewY);
+                ctx.fillText('Next Orb', previewX, previewY - previewSize * 0.8);
+                
+                drawImageCentered(
+                    `orb_${gameState.nextOrb}`,
+                    previewX,
+                    previewY,
+                    previewSize
+                );
             }
+            
+            // Draw drag preview if dragging
+            if (isDragging && dragPreview) {
+                const rect = canvas.getBoundingClientRect();
+                
+                // Convert screen coordinates to canvas coordinates
+                const canvasX = dragStartX - rect.left;
+                const canvasY = dragStartY - rect.top;
+                
+                ctx.globalAlpha = 0.7;
+                drawImageCentered(
+                    `orb_${dragPreview}`,
+                    canvasX,
+                    canvasY,
+                    Math.min(cellWidth, cellHeight) * 0.8
+                );
+                ctx.globalAlpha = 1;
+            }
+            
+            // Draw animations
+            animations.forEach(anim => {
+                if (anim.type === 'fusion') {
+                    const progress = anim.progress / anim.duration;
+                    const scale = 1 + Math.sin(progress * Math.PI) * 0.2;
+                    const alpha = 1 - progress;
+                    
+                    ctx.save();
+                    ctx.globalAlpha = alpha;
+                    ctx.translate(anim.x, anim.y);
+                    ctx.scale(scale, scale);
+                    drawImageCentered(
+                        `orb_${anim.value}`,
+                        0,
+                        0,
+                        Math.min(cellWidth, cellHeight) * 0.8
+                    );
+                    ctx.restore();
+                }
+            });
+            
+            // Restore context after screen shake
+            ctx.restore();
             
             // Update game stats in the UI overlay
             const gameStats = document.getElementById('gameStats');
@@ -555,92 +630,250 @@
                 Moves: ${gameState.moves}<br>
                 Max Chain: ${gameState.maxChain}
             `;
+        }
+
+        function startNewTurn() {
+            gameState.currentTurn++;
+            gameState.isTurnActive = true;
+            gameState.nextOrb = Math.floor(rng.next() * 6) + 1;
             
-            requestAnimationFrame(render);
-        }
-
-        // Utility functions
-        function sha256(str) {
-            // TODO: Implement SHA-256
-            // For now, return a simple hash
-            let hash = 0;
-            for (let i = 0; i < str.length; i++) {
-                const char = str.charCodeAt(i);
-                hash = ((hash << 5) - hash) + char;
-                hash = hash & hash;
+            // Check if game is over (no empty cells)
+            const hasEmptyCells = gameState.board.some(row => row.some(cell => cell === 0));
+            if (!hasEmptyCells) {
+                gameState.isGameOver = true;
+                gameState.isTurnActive = false;
             }
-            return hash.toString(16);
         }
 
-        class Mulberry32 {
-            constructor(seed) {
-                this.a = seed;
+        function endTurn() {
+            gameState.isTurnActive = false;
+            // Start next turn after a short delay
+            setTimeout(startNewTurn, 500);
+        }
+
+        function handleMouseMove(e) {
+            if (!isDragging || !selectedCell || !gameState.isTurnActive) return;
+            
+            const cell = getCellFromPoint(e.clientX, e.clientY);
+            if (cell && (cell.x !== selectedCell.x || cell.y !== selectedCell.y)) {
+                // Check if target cell is empty
+                if (gameState.board[cell.y][cell.x] === 0) {
+                    if (selectedCell.x === -1) {
+                        // Placing next orb
+                        gameState.board[cell.y][cell.x] = gameState.nextOrb;
+                        gameState.moves++;
+                        endTurn();
+                    } else {
+                        // Check if cells are adjacent
+                        const isAdjacent = (
+                            (Math.abs(cell.x - selectedCell.x) === 1 && cell.y === selectedCell.y) ||
+                            (Math.abs(cell.y - selectedCell.y) === 1 && cell.x === selectedCell.x)
+                        );
+                        
+                        if (isAdjacent) {
+                            // Swap orbs
+                            const temp = gameState.board[selectedCell.y][selectedCell.x];
+                            gameState.board[selectedCell.y][selectedCell.x] = gameState.board[cell.y][cell.x];
+                            gameState.board[cell.y][cell.x] = temp;
+                            
+                            // Update game state
+                            gameState.moves++;
+                            endTurn();
+                        }
+                    }
+                    
+                    selectedCell = null;
+                    isDragging = false;
+                    dragPreview = null;
+                    
+                    // Check for fusions
+                    checkFusions();
+                }
             }
             
-            next() {
-                this.a = this.a + 0x6D2B79F5;
-                let t = Math.imul(this.a ^ this.a >>> 15, 1 | this.a);
-                t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-                return ((t ^ t >>> 14) >>> 0) / 4294967296;
-            }
+            // Update drag preview position
+            dragStartX = e.clientX;
+            dragStartY = e.clientY;
         }
 
-        // Initialize
-        async function initialize() {
-            try {
-                console.log('Starting asset loading...');
+        function initializeGameState() {
+            // Create a 6x5 empty board
+            const board = Array(GRID_HEIGHT).fill().map(() => Array(GRID_WIDTH).fill(0));
+            
+            // Place 12 orbs randomly on the board
+            let placedOrbs = 0;
+            
+            while (placedOrbs < 12) {
+                const x = Math.floor(rng.next() * GRID_WIDTH);
+                const y = Math.floor(rng.next() * GRID_HEIGHT);
                 
-                // Load assets
-                console.log('Loading sprite atlas...');
-                await createSpriteAtlas();
-                console.log('Sprite atlas loaded');
+                if (board[y][x] === 0) {
+                    // Choose a random orb type between 1-6
+                    const orbType = Math.floor(rng.next() * 6) + 1;
+                    board[y][x] = orbType;
+                    placedOrbs++;
+                }
+            }
+            
+            // Initialize game state with default values
+            gameState = {
+                board: board,
+                nextOrb: Math.floor(rng.next() * 6) + 1,
+                score: 0,
+                moves: 0,
+                maxChain: 0,
+                isPractice: false,
+                isGameOver: false,
+                crystals: 0,
+                highestOrbs: new Set(),
+                currentTurn: 0,
+                isTurnActive: true
+            };
+            
+            // Make gameState available globally
+            window.gameState = gameState;
+        }
 
+        function checkFusions() {
+            let hasFusion = false;
+            let chainLength = 0;
+            
+            // Check for horizontal fusions
+            for (let y = 0; y < GRID_HEIGHT; y++) {
+                for (let x = 0; x < GRID_WIDTH - 2; x++) {
+                    const value = gameState.board[y][x];
+                    if (value !== 0 && value === gameState.board[y][x + 1] && value === gameState.board[y][x + 2]) {
+                        // Found a fusion
+                        hasFusion = true;
+                        chainLength++;
+                        
+                        // Calculate new orb value
+                        let newValue = value + 1;
+                        if (newValue > 6) {
+                            newValue = -1; // Crystal
+                            gameState.crystals++;
+                            playSound('crystal');
+                        } else {
+                            playSound('fusion');
+                        }
+                        
+                        // Update score
+                        gameState.score += value * value;
+                        
+                        // Update highest orbs
+                        gameState.highestOrbs.add(value);
+                        
+                        // Add fusion animation
+                        addFusionAnimation(
+                            padding + (x * cellWidth) + cellWidth/2,
+                            padding + (y * cellHeight) + cellHeight/2,
+                            value
+                        );
+                        
+                        // Apply fusion
+                        gameState.board[y][x] = newValue;
+                        gameState.board[y][x + 1] = 0;
+                        gameState.board[y][x + 2] = 0;
+                    }
+                }
+            }
+            
+            // Check for vertical fusions
+            for (let x = 0; x < GRID_WIDTH; x++) {
+                for (let y = 0; y < GRID_HEIGHT - 2; y++) {
+                    const value = gameState.board[y][x];
+                    if (value !== 0 && value === gameState.board[y + 1][x] && value === gameState.board[y + 2][x]) {
+                        // Found a fusion
+                        hasFusion = true;
+                        chainLength++;
+                        
+                        // Calculate new orb value
+                        let newValue = value + 1;
+                        if (newValue > 6) {
+                            newValue = -1; // Crystal
+                            gameState.crystals++;
+                            playSound('crystal');
+                        } else {
+                            playSound('fusion');
+                        }
+                        
+                        // Update score
+                        gameState.score += value * value;
+                        
+                        // Update highest orbs
+                        gameState.highestOrbs.add(value);
+                        
+                        // Add fusion animation
+                        addFusionAnimation(
+                            padding + (x * cellWidth) + cellWidth/2,
+                            padding + (y * cellHeight) + cellHeight/2,
+                            value
+                        );
+                        
+                        // Apply fusion
+                        gameState.board[y][x] = newValue;
+                        gameState.board[y + 1][x] = 0;
+                        gameState.board[y + 2][x] = 0;
+                    }
+                }
+            }
+            
+            // Update max chain
+            if (chainLength > gameState.maxChain) {
+                gameState.maxChain = chainLength;
+                // Add screen shake for larger chains
+                addScreenShake(Math.min(chainLength * 2, 10));
+            }
+            
+            // If there was a fusion, check for cascading fusions
+            if (hasFusion) {
+                checkFusions();
+            }
+        }
+
+        // Initialize audio
+        async function initializeAudio() {
+            await Promise.all([
+                loadAudio('fusion', 'assets/initial/fusion.mp3'),
+                loadAudio('crystal', 'assets/initial/crystal.mp3'),
+                loadAudio('music', 'assets/initial/music.mp3')
+            ]);
+            
+            // Start background music
+            const musicSource = audioContext.createBufferSource();
+            musicSource.buffer = audioBuffers['music'];
+            musicSource.connect(audioContext.destination);
+            musicSource.loop = true;
+            musicSource.start();
+        }
+
+        // Initialize the game
+        async function initialize() {
+            console.log('Starting asset loading...');
+            try {
+                // Load game assets first
+                console.log('Loading game assets...');
+                const assets = await loadAssets();
+                console.log('Game assets loaded');
+
+                // Load audio assets
                 console.log('Loading audio assets...');
-                await Promise.all([
-                    loadAudio('background', ASSETS.backgroundMusic),
-                    loadAudio('fusion', ASSETS.fusionSound),
-                    loadAudio('crystal', ASSETS.crystalSound)
-                ]).catch(error => {
-                    console.error('Error loading audio assets:', error);
-                    throw error;
-                });
+                await initializeAudio();
                 console.log('Audio assets loaded');
 
-                // Initialize game
-                console.log('Initializing game...');
-                window.addEventListener('resize', resizeCanvas);
+                // Initialize game state
+                initializeGameState();
+                console.log('Game initialized successfully');
+
+                // Set up canvas
                 resizeCanvas();
-                initializeBoard();
-                render();
-                console.log('Game initialized');
+                window.addEventListener('resize', resizeCanvas);
 
-                // Add click handler to start audio
-                document.addEventListener('click', function startAudio() {
-                    console.log('Starting audio playback...');
-                    // Start background music
-                    audioContext.resume().then(() => {
-                        const source = audioContext.createBufferSource();
-                        source.buffer = audioBuffers.background;
-                        source.connect(audioContext.destination);
-                        source.loop = true;
-                        source.start();
-                        console.log('Audio playback started');
-                    });
-                    document.removeEventListener('click', startAudio);
-                }, { once: true });
-
-                window.assetsLoaded = true;
-                console.log('Assets loaded successfully');
+                // Start game loop
+                requestAnimationFrame(gameLoop);
             } catch (error) {
                 console.error('Failed to initialize game:', error);
-                // Show error message to user
-                const toast = document.getElementById('toast');
-                toast.textContent = 'Failed to load game assets. Please refresh the page.';
-                toast.style.display = 'block';
-                setTimeout(() => {
-                    toast.style.display = 'none';
-                }, 5000);
-                throw error; // Re-throw to ensure the error is caught by the test
+                throw error;
             }
         }
 
@@ -653,6 +886,97 @@
             const rng = new Mulberry32(getDailySeed());
             return rng.next();
         };
+
+        // Game interaction
+        let selectedCell = null;
+        let isDragging = false;
+        let dragStartX = 0;
+        let dragStartY = 0;
+        let dragPreview = null;
+
+        function getCellFromPoint(x, y) {
+            const rect = canvas.getBoundingClientRect();
+            
+            // Convert screen coordinates to canvas coordinates
+            const canvasX = x - rect.left;
+            const canvasY = y - rect.top;
+            
+            // Convert canvas coordinates to grid coordinates
+            const cellX = Math.floor((canvasX - window.padding) / window.cellWidth);
+            const cellY = Math.floor((canvasY - window.padding) / window.cellHeight);
+            
+            if (cellX >= 0 && cellX < GRID_WIDTH && cellY >= 0 && cellY < GRID_HEIGHT) {
+                return { x: cellX, y: cellY };
+            }
+            return null;
+        }
+
+        function handleMouseDown(e) {
+            e.preventDefault();
+            const cell = getCellFromPoint(e.clientX, e.clientY);
+            if (cell) {
+                const value = gameState.board[cell.y][cell.x];
+                if (value !== 0) { // Only allow dragging non-empty cells
+                    selectedCell = cell;
+                    isDragging = true;
+                    dragStartX = e.clientX;
+                    dragStartY = e.clientY;
+                    dragPreview = value;
+                }
+            } else {
+                // Check if clicking the next orb preview
+                const rect = canvas.getBoundingClientRect();
+                
+                const canvasX = e.clientX - rect.left;
+                const canvasY = e.clientY - rect.top;
+                
+                const previewX = window.maxWidth / 2;
+                const previewY = window.maxHeight + window.cellHeight;
+                const previewSize = Math.min(window.cellWidth, window.cellHeight) * 0.8;
+                
+                // Check if click is within the preview orb
+                const dx = canvasX - previewX;
+                const dy = canvasY - previewY;
+                if (Math.sqrt(dx * dx + dy * dy) < previewSize / 2) {
+                    selectedCell = { x: -1, y: -1 }; // Special value for next orb
+                    isDragging = true;
+                    dragStartX = e.clientX;
+                    dragStartY = e.clientY;
+                    dragPreview = gameState.nextOrb;
+                }
+            }
+        }
+
+        function handleMouseUp(e) {
+            e.preventDefault();
+            selectedCell = null;
+            isDragging = false;
+            dragPreview = null;
+        }
+
+        // Add event listeners
+        canvas.addEventListener('mousedown', handleMouseDown);
+        canvas.addEventListener('mousemove', handleMouseMove);
+        canvas.addEventListener('mouseup', handleMouseUp);
+        canvas.addEventListener('mouseleave', handleMouseUp);
+
+        // Add touch support
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            handleMouseDown({ clientX: touch.clientX, clientY: touch.clientY });
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            handleMouseMove({ clientX: touch.clientX, clientY: touch.clientY });
+        });
+
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            handleMouseUp();
+        });
     </script>
 </body>
 </html> 
