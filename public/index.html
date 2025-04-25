@@ -248,7 +248,7 @@
         <div id="practiceDrawer"></div>
         <div id="uiOverlay">
             <div id="gameStats"></div>
-            <div id="copyright">© 2024 Hangover Games. All rights reserved.</div>
+            <div id="copyright">© 2025 Hangover Games. All rights reserved.</div>
         </div>
     </div>
     <div id="toast"></div>
@@ -258,6 +258,7 @@
         <p>When three or more identical orbs are adjacent, they fuse into a higher level orb.</p>
         <p>Level 6 orbs fuse into crystals, which grant bonus points.</p>
         <p>Try to create the longest chain of fusions!</p>
+        <p>The game ends when the board is completely filled with orbs and crystals.</p>
         <button onclick="document.getElementById('instructions').style.display='none'">Start Playing</button>
     </div>
     <div id="gameOver">
@@ -277,7 +278,7 @@
         // Build: 2024-03-20
         // Commit: [PLACEHOLDER]
         
-        // Copyright (c) 2024 Hangover Games. All rights reserved.
+        // Copyright (c) 2025 Hangover Games. All rights reserved.
         // This software is protected by copyright law and international treaties.
         // Unauthorized reproduction or distribution of this software, or any portion of it,
         // may result in severe civil and criminal penalties, and will be prosecuted
@@ -456,52 +457,96 @@
         }
 
         // Audio setup
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        let audioContext = null;
         let audioBuffers = {};
         let backgroundMusic = null;
         let isMuted = false;
 
+        // Initialize audio context
+        function initAudio() {
+            try {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                console.log('Audio context initialized');
+                return true;
+            } catch (error) {
+                console.error('Failed to initialize audio context:', error);
+                return false;
+            }
+        }
+
         async function loadAudio(name, src) {
             try {
+                if (!audioContext) {
+                    console.error('Audio context not initialized');
+                    return;
+                }
+
+                console.log(`Loading audio: ${name}`);
                 const response = await fetch(src);
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch audio: ${response.statusText}`);
+                }
                 const arrayBuffer = await response.arrayBuffer();
                 const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
                 audioBuffers[name] = audioBuffer;
+                console.log(`Audio loaded successfully: ${name}`);
             } catch (error) {
                 console.error(`Failed to load audio ${name}:`, error);
             }
         }
 
         function playSound(name, options = {}) {
-            if (!audioBuffers[name] || isMuted) return;
-            
-            const source = audioContext.createBufferSource();
-            const gainNode = audioContext.createGain();
-            
-            source.buffer = audioBuffers[name];
-            source.connect(gainNode);
-            gainNode.connect(audioContext.destination);
-            
-            // Apply volume if specified
-            if (options.volume !== undefined) {
-                gainNode.gain.value = options.volume;
+            if (!audioContext || !audioBuffers[name] || isMuted) {
+                console.log(`Sound not played: ${name} (context: ${!!audioContext}, buffer: ${!!audioBuffers[name]}, muted: ${isMuted})`);
+                return;
             }
             
-            source.start();
-            return source;
+            try {
+                const source = audioContext.createBufferSource();
+                const gainNode = audioContext.createGain();
+                
+                source.buffer = audioBuffers[name];
+                source.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                // Apply volume if specified
+                if (options.volume !== undefined) {
+                    gainNode.gain.value = options.volume;
+                }
+                
+                source.start();
+                console.log(`Playing sound: ${name}`);
+                return source;
+            } catch (error) {
+                console.error(`Failed to play sound ${name}:`, error);
+            }
         }
 
         function playBackgroundMusic() {
-            if (backgroundMusic) {
-                backgroundMusic.stop();
+            if (!audioContext || !audioBuffers['loop'] || isMuted) {
+                console.log('Background music not played (context or buffer missing, or muted)');
+                return;
             }
-            
-            backgroundMusic = playSound('loop', { volume: 0.3 });
-            backgroundMusic.loop = true;
+
+            try {
+                if (backgroundMusic) {
+                    backgroundMusic.stop();
+                }
+                
+                backgroundMusic = playSound('loop', { volume: 0.3 });
+                if (backgroundMusic) {
+                    backgroundMusic.loop = true;
+                    console.log('Background music started');
+                }
+            } catch (error) {
+                console.error('Failed to play background music:', error);
+            }
         }
 
         function toggleMute() {
             isMuted = !isMuted;
+            console.log(`Audio ${isMuted ? 'muted' : 'unmuted'}`);
+            
             if (isMuted) {
                 if (backgroundMusic) {
                     backgroundMusic.stop();
@@ -510,6 +555,9 @@
             } else {
                 playBackgroundMusic();
             }
+            
+            // Update mute button icon
+            muteButton.innerHTML = isMuted ? '🔇' : '🔊';
         }
 
         // Add mute button to UI
@@ -667,17 +715,6 @@
                                 Math.min(cellWidth, cellHeight) * 0.8
                             );
                         }
-                    } else {
-                        // Draw empty cell number
-                        ctx.fillStyle = '#4d2b17';
-                        ctx.font = `${Math.min(cellWidth, cellHeight) * 0.3}px monospace`;
-                        ctx.textAlign = 'center';
-                        ctx.textBaseline = 'middle';
-                        ctx.fillText(
-                            `${x + 1}${y + 1}`,
-                            cellX + cellWidth/2,
-                            cellY + cellHeight/2
-                        );
                     }
                 }
             }
@@ -871,7 +908,10 @@
             for (let y = 0; y < GRID_HEIGHT; y++) {
                 for (let x = 0; x < GRID_WIDTH - 2; x++) {
                     const value = gameState.board[y][x];
-                    if (value !== 0 && value === gameState.board[y][x + 1] && value === gameState.board[y][x + 2]) {
+                    // Skip if the value is a crystal (-1) or 0
+                    if (value <= 0) continue;
+                    
+                    if (value === gameState.board[y][x + 1] && value === gameState.board[y][x + 2]) {
                         // Found a fusion
                         hasFusion = true;
                         chainLength++;
@@ -918,7 +958,10 @@
             for (let x = 0; x < GRID_WIDTH; x++) {
                 for (let y = 0; y < GRID_HEIGHT - 2; y++) {
                     const value = gameState.board[y][x];
-                    if (value !== 0 && value === gameState.board[y + 1][x] && value === gameState.board[y + 2][x]) {
+                    // Skip if the value is a crystal (-1) or 0
+                    if (value <= 0) continue;
+                    
+                    if (value === gameState.board[y + 1][x] && value === gameState.board[y + 2][x]) {
                         // Found a fusion
                         hasFusion = true;
                         chainLength++;
@@ -985,6 +1028,11 @@
         async function initialize() {
             console.log('Starting asset loading...');
             try {
+                // Initialize audio
+                if (!initAudio()) {
+                    console.warn('Audio initialization failed, continuing without audio');
+                }
+
                 // Load game assets
                 console.log('Loading game assets...');
                 const assets = await loadAssets();
