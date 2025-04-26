@@ -1297,29 +1297,24 @@
             }
         }
 
-        // Add event listeners
-        canvas.addEventListener('mousedown', handleMouseDown);
-        canvas.addEventListener('mousemove', handleMouseMove);
-        canvas.addEventListener('mouseup', handleMouseUp);
-        canvas.addEventListener('mouseleave', handleMouseUp);
+        // Add pointer event listeners
+        canvas.addEventListener('pointerdown', handlePointerDown);
+        canvas.addEventListener('pointermove', handlePointerMove);
+        canvas.addEventListener('pointerup', handlePointerUp);
+        canvas.addEventListener('pointercancel', handlePointerUp);
 
-        // Add touch support
-        canvas.addEventListener('touchstart', (e) => {
+        function handlePointerDown(e) {
             e.preventDefault();
-            const touch = e.touches[0];
-            handleMouseDown({ clientX: touch.clientX, clientY: touch.clientY });
-        });
-
-        canvas.addEventListener('touchmove', (e) => {
+            handleMouseDown(e);
+        }
+        function handlePointerMove(e) {
             e.preventDefault();
-            const touch = e.touches[0];
-            handleMouseMove({ clientX: touch.clientX, clientY: touch.clientY });
-        });
-
-        canvas.addEventListener('touchend', (e) => {
+            handleMouseMove(e);
+        }
+        function handlePointerUp(e) {
             e.preventDefault();
             handleMouseUp(e);
-        });
+        }
 
         function showGameOver() {
             const gameOver = document.getElementById('gameOver');
