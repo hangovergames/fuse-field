@@ -982,8 +982,7 @@
         }
 
         function handleMouseUp(e) {
-            e.preventDefault();
-            
+            if (e) e.preventDefault();
             // If we're dragging the next orb and dropping in an invalid location
             if (isDragging && selectedCell && selectedCell.x === -1) {
                 // Find all empty cells
@@ -995,23 +994,19 @@
                         }
                     }
                 }
-                
                 // If there are empty cells, place the orb randomly
                 if (emptyCells.length > 0) {
                     const randomCell = emptyCells[Math.floor(Math.random() * emptyCells.length)];
                     gameState.board[randomCell.y][randomCell.x] = gameState.nextOrb;
                     gameState.moves++;
-                    
                     // Add a small animation to show where it was placed
                     const cellX = padding + (randomCell.x * cellWidth) + cellWidth/2;
                     const cellY = padding + (randomCell.y * cellHeight) + cellHeight/2;
                     visualEffects.addFusionAnimation(cellX, cellY, gameState.nextOrb);
-                    
                     endTurn();
                     checkFusions();
                 }
             }
-            
             selectedCell = null;
             isDragging = false;
             dragPreview = null;
@@ -1323,7 +1318,7 @@
 
         canvas.addEventListener('touchend', (e) => {
             e.preventDefault();
-            handleMouseUp();
+            handleMouseUp(e);
         });
 
         function showGameOver() {
