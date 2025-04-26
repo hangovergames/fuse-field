@@ -41,8 +41,8 @@ async function isServerReady() {
 async function startServer() {
   console.log('Starting HTTP server...');
   
-  // Start the server process with the public directory
-  httpServer = spawn('npx', ['http-server', 'public', '-p', SERVER_PORT.toString()], {
+  // Start the server process with the docs directory
+  httpServer = spawn('npx', ['http-server', 'docs', '-p', SERVER_PORT.toString()], {
     stdio: ['ignore', 'pipe', 'pipe']
   });
 

@@ -5,7 +5,7 @@
   "type": "commonjs",
   "scripts": {
     "test": "node scripts/test-app-init.js",
-    "start": "cd public && npx http-server -p 3000"
+    "start": "cd docs && npx http-server -p 3000"
   },
   "dependencies": {
     "@playwright/test": "^1.42.1",
