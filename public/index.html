@@ -61,7 +61,7 @@
         }
         #practiceDrawer {
             position: absolute;
-            right: -100px;
+            right: -80px;
             top: 0;
             width: 80px;
             height: 100%;
@@ -69,21 +69,79 @@
             border-left: 4px solid #4d2b17;
             transition: transform 0.3s ease;
             cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
         }
         #practiceDrawer:hover {
             transform: translateX(-20px);
+        }
+        #practiceDrawer.active {
+            right: 0;
+            transform: none;
+        }
+        #practiceDrawer .icon {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+        #practiceDrawer .label {
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            font-size: 14px;
+            color: #4d2b17;
+            font-weight: bold;
         }
         #toast {
             position: fixed;
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 8px 16px;
-            border-radius: 4px;
+            background: #222;
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 6px;
             display: none;
-            z-index: 1000;
+            z-index: 9999;
+            font-family: monospace;
+            font-size: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            pointer-events: none;
+        }
+        #copyModal {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 10000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        #copyModalContent {
+            background: #fff;
+            padding: 24px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #copyModal textarea {
+            width: 350px;
+            height: 80px;
+            font-family: monospace;
+            font-size: 15px;
+            margin-bottom: 12px;
+        }
+        #copyModal button {
+            font-size: 15px;
+            padding: 6px 18px;
+            border-radius: 4px;
+            border: none;
+            background: #222;
+            color: #fff;
+            cursor: pointer;
         }
         #instructions {
             position: fixed;
@@ -209,10 +267,21 @@
             border-radius: 4px;
             margin: 10px 0;
             word-break: break-all;
-            cursor: pointer;
+            font-family: monospace;
+            font-size: 14px;
+            line-height: 1.4;
+            white-space: pre-wrap;
+            user-select: all;
+            cursor: text;
         }
         #shareString:hover {
             background: rgba(77, 43, 23, 0.2);
+        }
+        #copyInstructions {
+            font-size: 12px;
+            color: #666;
+            margin: 5px 0;
+            text-align: center;
         }
         @media (max-width: 768px) {
             #gameContainer {
@@ -245,13 +314,22 @@
 <body>
     <div id="gameContainer">
         <canvas id="gameCanvas"></canvas>
-        <div id="practiceDrawer"></div>
+        <div id="practiceDrawer" onclick="togglePracticeMode()">
+            <div class="icon">∞</div>
+            <div class="label">PRACTICE</div>
+        </div>
         <div id="uiOverlay">
             <div id="gameStats"></div>
             <div id="copyright">© 2025 Hangover Games. All rights reserved.</div>
         </div>
     </div>
     <div id="toast"></div>
+    <div id="copyModal">
+        <div id="copyModalContent">
+            <textarea id="copyModalTextarea" readonly></textarea>
+            <button onclick="closeCopyModal()">Close</button>
+        </div>
+    </div>
     <div id="instructions">
         <h2>How to Play Fuse Field</h2>
         <p>Drag orbs to empty cells to create matches!</p>
@@ -269,11 +347,12 @@
         <p>Highest Orbs: <span id="finalOrbs"></span></p>
         <p>Crystals: <span id="finalCrystals">0</span></p>
         <div id="shareString"></div>
-        <button onclick="copyShareString()">Copy Share String</button>
+        <button id="copyButton" type="button">Copy Share String</button>
         <button onclick="startNewGame()">Play Again</button>
     </div>
 
     <script src="assets.js"></script>
+    <script src="effects.js"></script>
     <script>
         // Build: 2024-03-20
         // Commit: [PLACEHOLDER]
@@ -627,20 +706,29 @@
             const orbString = highestOrbs.map(orb => orbEmojis[orb]).join('');
             const crystalString = '✨'.repeat(gameState.crystals);
             
-            return `Fuse Field — ${gameState.moves} moves — ${gameState.score} pts ${orbString}${crystalString}`;
+            return `Fuse Field — ${gameState.moves} moves — ${gameState.score} pts ${orbString}${crystalString}\nhttps://fuse-field.hangover.games`;
         }
 
         // Practice mode
         function togglePracticeMode() {
             gameState.isPractice = !gameState.isPractice;
+            const practiceDrawer = document.getElementById('practiceDrawer');
+            
             if (gameState.isPractice) {
                 // Generate a new random board for practice
                 initializeGameState();
+                practiceDrawer.classList.add('active');
+                showToast('Practice mode activated');
             } else {
                 // Reset to daily board
                 initializeGameState();
+                practiceDrawer.classList.remove('active');
+                showToast('Daily puzzle mode activated');
             }
         }
+
+        // Initialize visual effects
+        let visualEffects;
 
         // Game loop
         let lastTime = 0;
@@ -648,8 +736,8 @@
             const deltaTime = (timestamp - lastTime) / 1000;
             lastTime = timestamp;
 
-            // Update animations
-            updateAnimations(deltaTime);
+            // Update visual effects
+            visualEffects.update(timestamp);
 
             // Render the game
             render();
@@ -660,10 +748,6 @@
 
         function render() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // Apply screen shake
-            ctx.save();
-            ctx.translate(screenShake.x, screenShake.y);
             
             // Get dimensions from global state
             const cellWidth = window.cellWidth;
@@ -762,31 +846,38 @@
                     Math.min(cellWidth, cellHeight) * 0.8
                 );
                 ctx.globalAlpha = 1;
+
+                // Show valid/invalid move feedback
+                const cell = getCellFromPoint(dragStartX, dragStartY);
+                if (cell) {
+                    const cellX = padding + (cell.x * cellWidth);
+                    const cellY = padding + (cell.y * cellHeight);
+                    
+                    // Don't show feedback if this is the source cell
+                    if (selectedCell && cell.x === selectedCell.x && cell.y === selectedCell.y) {
+                        return;
+                    }
+                    
+                    if (gameState.board[cell.y][cell.x] === 0) {
+                        // Draw valid move highlight
+                        ctx.save();
+                        ctx.globalAlpha = 0.3;
+                        ctx.fillStyle = '#8EF3C9';
+                        ctx.fillRect(cellX, cellY, cellWidth, cellHeight);
+                        ctx.restore();
+                    } else {
+                        // Draw invalid move highlight
+                        ctx.save();
+                        ctx.globalAlpha = 0.3;
+                        ctx.fillStyle = '#FF5B5B';
+                        ctx.fillRect(cellX, cellY, cellWidth, cellHeight);
+                        ctx.restore();
+                    }
+                }
             }
             
-            // Draw animations
-            animations.forEach(anim => {
-                if (anim.type === 'fusion') {
-                    const progress = anim.progress / anim.duration;
-                    const scale = 1 + Math.sin(progress * Math.PI) * 0.2;
-                    const alpha = 1 - progress;
-                    
-                    ctx.save();
-                    ctx.globalAlpha = alpha;
-                    ctx.translate(anim.x, anim.y);
-                    ctx.scale(scale, scale);
-                    drawImageCentered(
-                        `orb_${anim.value}`,
-                        0,
-                        0,
-                        Math.min(cellWidth, cellHeight) * 0.8
-                    );
-                    ctx.restore();
-                }
-            });
-            
-            // Restore context after screen shake
-            ctx.restore();
+            // Render visual effects
+            visualEffects.render();
             
             // Update game stats in the UI overlay
             const gameStats = document.getElementById('gameStats');
@@ -862,6 +953,42 @@
             dragStartY = e.clientY;
         }
 
+        function handleMouseUp(e) {
+            e.preventDefault();
+            
+            // If we're dragging the next orb and dropping in an invalid location
+            if (isDragging && selectedCell && selectedCell.x === -1) {
+                // Find all empty cells
+                const emptyCells = [];
+                for (let y = 0; y < GRID_HEIGHT; y++) {
+                    for (let x = 0; x < GRID_WIDTH; x++) {
+                        if (gameState.board[y][x] === 0) {
+                            emptyCells.push({x, y});
+                        }
+                    }
+                }
+                
+                // If there are empty cells, place the orb randomly
+                if (emptyCells.length > 0) {
+                    const randomCell = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+                    gameState.board[randomCell.y][randomCell.x] = gameState.nextOrb;
+                    gameState.moves++;
+                    
+                    // Add a small animation to show where it was placed
+                    const cellX = padding + (randomCell.x * cellWidth) + cellWidth/2;
+                    const cellY = padding + (randomCell.y * cellHeight) + cellHeight/2;
+                    visualEffects.addFusionAnimation(cellX, cellY, gameState.nextOrb);
+                    
+                    endTurn();
+                    checkFusions();
+                }
+            }
+            
+            selectedCell = null;
+            isDragging = false;
+            dragPreview = null;
+        }
+
         function initializeGameState() {
             // Create a 6x5 empty board
             const board = Array(GRID_HEIGHT).fill().map(() => Array(GRID_WIDTH).fill(0));
@@ -869,13 +996,18 @@
             // Place 12 orbs randomly on the board
             let placedOrbs = 0;
             
+            // Use different RNG for practice mode
+            const currentRNG = gameState.isPractice ? 
+                new Mulberry32(Date.now()) : // Use current timestamp for practice
+                new Mulberry32(getDailySeed()); // Use daily seed for normal mode
+            
             while (placedOrbs < 12) {
-                const x = Math.floor(rng.next() * GRID_WIDTH);
-                const y = Math.floor(rng.next() * GRID_HEIGHT);
+                const x = Math.floor(currentRNG.next() * GRID_WIDTH);
+                const y = Math.floor(currentRNG.next() * GRID_HEIGHT);
                 
                 if (board[y][x] === 0) {
                     // Choose a random orb type between 1-6
-                    const orbType = Math.floor(rng.next() * 6) + 1;
+                    const orbType = Math.floor(currentRNG.next() * 6) + 1;
                     board[y][x] = orbType;
                     placedOrbs++;
                 }
@@ -884,11 +1016,11 @@
             // Initialize game state with default values
             gameState = {
                 board: board,
-                nextOrb: Math.floor(rng.next() * 6) + 1,
+                nextOrb: Math.floor(currentRNG.next() * 6) + 1,
                 score: 0,
                 moves: 0,
                 maxChain: 0,
-                isPractice: false,
+                isPractice: gameState.isPractice,
                 isGameOver: false,
                 crystals: 0,
                 highestOrbs: new Set(),
@@ -944,12 +1076,14 @@
                             gameState.crystals++;
                         }
                         
-                        // Add fusion animation
-                        addFusionAnimation(
-                            padding + (x * cellWidth) + cellWidth/2,
-                            padding + (y * cellHeight) + cellHeight/2,
-                            value
-                        );
+                        // Add fusion animation and particles
+                        const cellX = padding + (x * cellWidth) + cellWidth/2;
+                        const cellY = padding + (y * cellHeight) + cellHeight/2;
+                        visualEffects.addFusionAnimation(cellX, cellY, value);
+                        visualEffects.createParticle(cellX, cellY, 'pop');
+                        if (newValue === -1) {
+                            visualEffects.createParticle(cellX, cellY, 'sparkle');
+                        }
                     }
                 }
             }
@@ -994,12 +1128,14 @@
                             gameState.crystals++;
                         }
                         
-                        // Add fusion animation
-                        addFusionAnimation(
-                            padding + (x * cellWidth) + cellWidth/2,
-                            padding + (y * cellHeight) + cellHeight/2,
-                            value
-                        );
+                        // Add fusion animation and particles
+                        const cellX = padding + (x * cellWidth) + cellWidth/2;
+                        const cellY = padding + (y * cellHeight) + cellHeight/2;
+                        visualEffects.addFusionAnimation(cellX, cellY, value);
+                        visualEffects.createParticle(cellX, cellY, 'pop');
+                        if (newValue === -1) {
+                            visualEffects.createParticle(cellX, cellY, 'sparkle');
+                        }
                     }
                 }
             }
@@ -1016,7 +1152,7 @@
                 
                 // Add screen shake for large chains
                 if (chainLength > 2) {
-                    addScreenShake(chainLength * 2);
+                    visualEffects.addScreenShake(chainLength * 2);
                 }
                 
                 // Check for more fusions after a short delay
@@ -1045,6 +1181,20 @@
                 // Set up canvas
                 resizeCanvas();
                 window.addEventListener('resize', resizeCanvas);
+
+                // Initialize visual effects
+                visualEffects = new VisualEffects(canvas, ctx);
+
+                // Set up copy button
+                const copyButton = document.getElementById('copyButton');
+                if (copyButton) {
+                    copyButton.onclick = function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log('Copy button clicked');
+                        copyShareString();
+                    };
+                }
 
                 // Start game loop
                 requestAnimationFrame(gameLoop);
@@ -1124,13 +1274,6 @@
             }
         }
 
-        function handleMouseUp(e) {
-            e.preventDefault();
-            selectedCell = null;
-            isDragging = false;
-            dragPreview = null;
-        }
-
         // Add event listeners
         canvas.addEventListener('mousedown', handleMouseDown);
         canvas.addEventListener('mousemove', handleMouseMove);
@@ -1171,9 +1314,14 @@
             finalOrbs.textContent = Array.from(gameState.highestOrbs).sort((a, b) => b - a).join(', ');
             finalCrystals.textContent = gameState.crystals;
             
-            // Generate share string
-            const shareText = generateShareString();
-            shareString.textContent = shareText;
+            // Generate share string only for daily mode
+            if (!gameState.isPractice) {
+                const shareText = generateShareString();
+                shareString.textContent = shareText;
+                document.getElementById('shareString').style.display = 'block';
+            } else {
+                document.getElementById('shareString').style.display = 'none';
+            }
             
             // Show game over screen
             gameOver.style.display = 'block';
@@ -1184,9 +1332,48 @@
         
         function copyShareString() {
             const shareString = document.getElementById('shareString');
-            navigator.clipboard.writeText(shareString.textContent).then(() => {
-                showToast('Share string copied to clipboard!');
-            });
+            if (!shareString || !shareString.textContent) {
+                showToast('Share string not found or empty');
+                return;
+            }
+            const textToCopy = shareString.textContent.trim();
+            // Try Clipboard API
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(textToCopy)
+                    .then(() => {
+                        showToast('Share string copied to clipboard!');
+                    })
+                    .catch(err => {
+                        showCopyModal(textToCopy);
+                        showToast('Copy failed. Please copy manually.');
+                    });
+            } else {
+                showCopyModal(textToCopy);
+                showToast('Copy not supported. Please copy manually.');
+            }
+        }
+        function showCopyModal(text) {
+            const modal = document.getElementById('copyModal');
+            const textarea = document.getElementById('copyModalTextarea');
+            modal.style.display = 'flex';
+            textarea.value = text;
+            textarea.focus();
+            textarea.select();
+        }
+        function closeCopyModal() {
+            document.getElementById('copyModal').style.display = 'none';
+        }
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            if (!toast) return;
+            toast.textContent = message;
+            toast.style.display = 'block';
+            toast.style.animation = 'none';
+            toast.offsetHeight;
+            toast.style.animation = 'fadeInOut 2s ease-in-out';
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 2000);
         }
         
         function startNewGame() {
@@ -1195,15 +1382,6 @@
             
             // Reset game state
             initializeGameState();
-        }
-        
-        function showToast(message) {
-            const toast = document.getElementById('toast');
-            toast.textContent = message;
-            toast.style.display = 'block';
-            setTimeout(() => {
-                toast.style.display = 'none';
-            }, 2000);
         }
     </script>
 </body>
