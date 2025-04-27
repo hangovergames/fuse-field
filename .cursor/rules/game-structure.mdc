@@ -3,3 +3,37 @@ description:
 globs:
 alwaysApply: false
 ---
+# Fuse Field Game Structure
+
+The game is a browser-based puzzle game implemented in a single HTML file: [public/index.html](mdc:public/index.html)
+
+## Core Components:
+
+1. Game State Management
+   - Board state (5x6 grid)
+   - Score tracking
+   - Move counting
+   - Chain reaction tracking
+   - Crystal formation
+
+2. Asset Management
+   - Image assets (orbs, grid, crystals)
+   - Audio files in [audio/](mdc:audio/) directory
+   - Asset loading and caching system
+
+3. Rendering System
+   - Canvas-based rendering
+   - Responsive grid layout
+   - Animation system for fusions and effects
+   - Screen shake effects
+
+4. Game Logic
+   - Daily seed generation
+   - Practice mode
+   - Fusion detection and handling
+   - Chain reaction processing
+
+## Key Files:
+- [README.md](mdc:README.md) - Game design and requirements
+- [public/index.html](mdc:public/index.html) - Main game implementation
+- [audio/make_audio.sh](mdc:audio/make_audio.sh) - Audio asset generation

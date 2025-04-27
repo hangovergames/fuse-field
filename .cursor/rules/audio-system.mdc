@@ -3,3 +3,30 @@ description:
 globs:
 alwaysApply: false
 ---
+# Audio System Documentation
+
+The game uses Web Audio API for sound effects and background music. Audio files are stored in [audio/](mdc:audio/) directory.
+
+## Audio Assets:
+- `loop.ogg` - Background chiptune music (45s loop)
+- `bell.ogg` - Crystal formation sound
+- `chain.ogg` - Chain reaction sound
+- `chime.ogg` - Fusion sound
+- `pop.ogg` - Basic orb movement sound
+
+## Audio Generation:
+Audio files are generated using [audio/make_audio.sh](mdc:audio/make_audio.sh), which creates:
+- White noise for pop effects
+- Sine waves for chimes
+- Ascending arpeggios for chain reactions
+- Deep bell tones for crystal formation
+- Chiptune loop for background music
+
+## Implementation:
+The audio system in [public/index.html](mdc:public/index.html) includes:
+- Audio context initialization
+- Sound loading and buffering
+- Volume control
+- Mute functionality
+- Background music looping
+- Sound effect triggers for game events

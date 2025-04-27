@@ -3,3 +3,39 @@ description:
 globs:
 alwaysApply: false
 ---
+# Game Interaction Handling
+
+The game uses mouse and touch interactions for orb movement and placement. Implementation in [public/index.html](mdc:public/index.html).
+
+## Core Interaction Components:
+
+1. Mouse Events:
+   - `mousedown` - Start dragging orbs
+   - `mousemove` - Update drag preview position
+   - `mouseup` - Place orbs and trigger fusions
+   - `mouseleave` - Cancel dragging
+
+2. Touch Events:
+   - `touchstart` - Start dragging on mobile
+   - `touchmove` - Update drag position
+   - `touchend` - Place orbs
+   - Touch event prevention for smooth gameplay
+
+3. Drag Preview:
+   - Semi-transparent orb follows cursor
+   - Preview matches dragged orb's value
+   - Position updates in real-time
+   - Snaps to grid on valid placement
+
+4. Grid Interaction:
+   - Cell detection from cursor position
+   - Adjacent cell validation
+   - Empty cell validation
+   - Next orb preview interaction
+
+5. Game State Updates:
+   - Board state changes
+   - Move counting
+   - Score updates
+   - Chain reaction triggers
+   - Animation spawning

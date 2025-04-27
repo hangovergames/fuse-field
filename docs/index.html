@@ -551,22 +551,22 @@
             try {
                 // Load orbs
                 for (let i = 1; i <= 6; i++) {
-                    await loadImage(`orb_${i}`, `assets/initial/orb_${i}.png`);
+                    await loadImage(`orb_${i}`, `assets/magical/orb_${i}.png`);
                 }
                 
                 // Load other assets
                 await Promise.all([
-                    loadImage('crystal', 'assets/initial/orb_crystal.png'),
-                    loadImage('gridCell', 'assets/initial/grid_cell_empty.png'),
-                    loadImage('gridHighlight', 'assets/initial/grid_highlight.png'),
-                    loadImage('backdrop', 'assets/initial/backdrop_parchment_panel.png'),
+                    loadImage('crystal', 'assets/magical/orb_crystal.png'),
+                    loadImage('gridCell', 'assets/magical/grid_cell_empty.png'),
+                    loadImage('gridHighlight', 'assets/magical/grid_highlight.png'),
+                    loadImage('backdrop', 'assets/magical/backdrop_parchment_panel.png'),
                     // Load audio files
                     loadAudio('pop', 'audio/pop.ogg'),
                     loadAudio('chime', 'audio/chime.ogg'),
                     loadAudio('chain', 'audio/chain.ogg'),
                     loadAudio('bell', 'audio/bell.ogg'),
                     loadAudio('loop', 'audio/loop.ogg')
-                ]);
+                ]);j
                 
                 console.log('Assets loaded successfully');
                 window.assetsLoaded = true;
@@ -975,6 +975,9 @@
                         }
                         
                         endTurn();
+                        
+                        // Check for fusions after placing new orb
+                        checkFusions();
                     } else {
                         // Check if cells are adjacent
                         const isAdjacent = (
@@ -983,6 +986,10 @@
                         );
                         
                         if (isAdjacent) {
+                            // Calculate direction of move
+                            const dx = cell.x - selectedCell.x;
+                            const dy = cell.y - selectedCell.y;
+                            
                             // Swap orbs
                             const temp = gameState.board[selectedCell.y][selectedCell.x];
                             gameState.board[selectedCell.y][selectedCell.x] = gameState.board[cell.y][cell.x];
@@ -991,15 +998,15 @@
                             // Update game state
                             gameState.moves++;
                             endTurn();
+                            
+                            // Check for fusions with the direction of the move
+                            checkFusions([dx, dy]);
                         }
                     }
                     
                     selectedCell = null;
                     isDragging = false;
                     dragPreview = null;
-                    
-                    // Check for fusions
-                    checkFusions();
                 }
             }
             
@@ -1088,10 +1095,10 @@
             window.gameState = gameState;
         }
 
-        function checkFusions() {
+        function checkFusions(initialDirection = null) {
             let hasFusion = false;
             let chainLength = 0;
-            let fusionPoints = []; // Track points where fusions occurred
+            let visited = new Set(); // Track visited cells for this round
             
             // Helper function to check for clusters
             function checkCluster(x, y, value) {
@@ -1100,78 +1107,92 @@
             }
             
             // Helper function to find all connected orbs of same value
-            function findConnectedOrbs(x, y, value, visited = new Set()) {
+            function findConnectedOrbs(x, y, value, localVisited = new Set()) {
                 const key = `${x},${y}`;
-                if (visited.has(key)) return [];
+                if (localVisited.has(key) || visited.has(key)) return [];
+                localVisited.add(key);
                 visited.add(key);
                 
                 const connected = [{x, y}];
-                const directions = [[0, 1], [1, 0], [0, -1], [-1, 0]];
+                const directions = [
+                    [0, 1],  // down
+                    [1, 0],  // right
+                    [0, -1], // up
+                    [-1, 0]  // left
+                ];
                 
                 for (const [dx, dy] of directions) {
                     const nx = x + dx;
                     const ny = y + dy;
                     if (checkCluster(nx, ny, value)) {
-                        connected.push(...findConnectedOrbs(nx, ny, value, visited));
+                        connected.push(...findConnectedOrbs(nx, ny, value, localVisited));
                     }
                 }
                 
                 return connected;
             }
             
-            // Check for clusters
+            // Helper function to check for new fusions around a point
+            function checkNewFusions(x, y) {
+                const value = gameState.board[y][x];
+                if (value <= 0) return false;
+                
+                const connected = findConnectedOrbs(x, y, value);
+                if (connected.length >= 3) {
+                    hasFusion = true;
+                    chainLength++;
+                    
+                    // Play fusion sound
+                    playSound('chime');
+                    
+                    // Calculate new orb value
+                    let newValue = value + 1;
+                    if (newValue > 6) {
+                        newValue = -1; // Crystal
+                        playSound('bell', { volume: 0.5 });
+                        gameState.score += CRYSTAL_BONUS; // Add crystal bonus
+                    }
+                    
+                    // Update board
+                    gameState.board[y][x] = newValue;
+                    connected.forEach(({x: cx, y: cy}) => {
+                        if (cx !== x || cy !== y) {
+                            gameState.board[cy][cx] = 0;
+                        }
+                    });
+                    
+                    // Update score
+                    gameState.score += value * value;
+                    
+                    // Track highest orb
+                    if (value > 0) {
+                        gameState.highestOrbs.add(value);
+                    }
+                    
+                    // Track crystals
+                    if (newValue === -1) {
+                        gameState.crystals++;
+                    }
+                    
+                    // Add fusion animation and particles
+                    const cellX = padding + (x * cellWidth) + cellWidth/2;
+                    const cellY = padding + (y * cellHeight) + cellHeight/2;
+                    visualEffects.addFusionAnimation(cellX, cellY, value);
+                    visualEffects.createParticle(cellX, cellY, 'pop');
+                    if (newValue === -1) {
+                        visualEffects.createParticle(cellX, cellY, 'sparkle');
+                    }
+                    
+                    return true;
+                }
+                return false;
+            }
+            
+            // Check for fusions
             for (let y = 0; y < GRID_HEIGHT; y++) {
                 for (let x = 0; x < GRID_WIDTH; x++) {
-                    const value = gameState.board[y][x];
-                    if (value <= 0) continue;
-                    
-                    const connected = findConnectedOrbs(x, y, value);
-                    if (connected.length >= 3) {
-                        hasFusion = true;
-                        chainLength++;
-                        
-                        // Play fusion sound
-                        playSound('chime');
-                        
-                        // Calculate new orb value
-                        let newValue = value + 1;
-                        if (newValue > 6) {
-                            newValue = -1; // Crystal
-                            playSound('bell', { volume: 0.5 });
-                            gameState.score += CRYSTAL_BONUS; // Add crystal bonus
-                        }
-                        
-                        // Update board
-                        gameState.board[y][x] = newValue;
-                        connected.forEach(({x: cx, y: cy}) => {
-                            if (cx !== x || cy !== y) {
-                                gameState.board[cy][cx] = 0;
-                            }
-                        });
-                        
-                        // Update score
-                        gameState.score += value * value;
-                        
-                        // Track highest orb
-                        if (value > 0) {
-                            gameState.highestOrbs.add(value);
-                        }
-                        
-                        // Track crystals
-                        if (newValue === -1) {
-                            gameState.crystals++;
-                        }
-                        
-                        // Add fusion animation and particles
-                        const cellX = padding + (x * cellWidth) + cellWidth/2;
-                        const cellY = padding + (y * cellHeight) + cellHeight/2;
-                        visualEffects.addFusionAnimation(cellX, cellY, value);
-                        visualEffects.createParticle(cellX, cellY, 'pop');
-                        if (newValue === -1) {
-                            visualEffects.createParticle(cellX, cellY, 'sparkle');
-                        }
-                        
-                        fusionPoints.push({x, y, value: newValue});
+                    if (!visited.has(`${x},${y}`)) {
+                        checkNewFusions(x, y);
                     }
                 }
             }
