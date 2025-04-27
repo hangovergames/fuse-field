@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fuse Field</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
         body {
             margin: 0;
@@ -13,7 +14,7 @@
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            font-family: monospace;
+            font-family: 'Press Start 2P', monospace;
             overflow: hidden;
             touch-action: none; /* Prevent default touch actions */
         }
@@ -104,8 +105,8 @@
             border-radius: 6px;
             display: none;
             z-index: 9999;
-            font-family: monospace;
-            font-size: 16px;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 12px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.3);
             pointer-events: none;
         }
@@ -130,8 +131,8 @@
         #copyModal textarea {
             width: 350px;
             height: 80px;
-            font-family: monospace;
-            font-size: 15px;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 12px;
             margin-bottom: 12px;
         }
         #copyModal button {
@@ -156,16 +157,18 @@
             max-width: 80%;
             width: 400px;
             z-index: 1000;
-            font-family: monospace;
+            font-family: 'Press Start 2P', monospace;
             line-height: 1.5;
             text-align: center;
         }
         #instructions h2 {
             margin-top: 0;
             color: #4d2b17;
+            font-size: 16px;
         }
         #instructions p {
             margin: 10px 0;
+            font-size: 12px;
         }
         #instructions button {
             background: #4d2b17;
@@ -174,8 +177,8 @@
             padding: 10px 20px;
             border-radius: 4px;
             cursor: pointer;
-            font-family: monospace;
-            font-size: 16px;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 12px;
             margin-top: 20px;
         }
         #instructions button:hover {
@@ -200,8 +203,8 @@
             top: 20px;
             left: 20px;
             color: #4d2b17;
-            font-family: monospace;
-            font-size: 16px;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 12px;
             line-height: 1.5;
             background: rgba(255, 247, 226, 0.8);
             padding: 10px;
@@ -235,7 +238,7 @@
             max-width: 80%;
             width: 400px;
             z-index: 1000;
-            font-family: monospace;
+            font-family: 'Press Start 2P', monospace;
             line-height: 1.5;
             text-align: center;
             display: none;
@@ -243,9 +246,11 @@
         #gameOver h2 {
             margin-top: 0;
             color: #4d2b17;
+            font-size: 16px;
         }
         #gameOver p {
             margin: 10px 0;
+            font-size: 12px;
         }
         #gameOver button {
             background: #4d2b17;
@@ -254,8 +259,8 @@
             padding: 10px 20px;
             border-radius: 4px;
             cursor: pointer;
-            font-family: monospace;
-            font-size: 16px;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 12px;
             margin: 10px 5px;
         }
         #gameOver button:hover {
@@ -267,8 +272,8 @@
             border-radius: 4px;
             margin: 10px 0;
             word-break: break-all;
-            font-family: monospace;
-            font-size: 14px;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 10px;
             line-height: 1.4;
             white-space: pre-wrap;
             user-select: all;
@@ -278,10 +283,11 @@
             background: rgba(77, 43, 23, 0.2);
         }
         #copyInstructions {
-            font-size: 12px;
+            font-size: 10px;
             color: #666;
             margin: 5px 0;
             text-align: center;
+            font-family: 'Press Start 2P', monospace;
         }
         #githubButton {
             position: absolute;
@@ -403,6 +409,14 @@
             5: '#FFE97A',
             6: '#FFB800'
         };
+        const CRYSTAL_BONUS = 50; // Fixed bonus for creating a crystal
+        const PRACTICE_TIPS = [
+            "Merge near walls to free centre space!",
+            "Plan your chains to maximize crystal creation!",
+            "Save high-level orbs for big chain reactions!",
+            "Watch out for isolated orbs that can't be merged!",
+            "Try to keep the board balanced for more options!"
+        ];
 
         // RNG implementation
         class Mulberry32 {
@@ -441,7 +455,9 @@
             crystals: 0,
             highestOrbs: new Set(),
             currentTurn: 0,
-            isTurnActive: false
+            isTurnActive: false,
+            moveCap: 0,
+            remainingMoves: 0
         };
 
         // Canvas setup
@@ -693,12 +709,13 @@
                 y: y,
                 value: value,
                 progress: 0,
-                duration: 0.3
+                duration: 0.3 // 300ms for fusion animation
             });
         }
 
         function addScreenShake(intensity) {
             screenShake.intensity = intensity;
+            screenShake.duration = 0.2; // 200ms for screen shake
         }
 
         function updateAnimations(deltaTime) {
@@ -947,6 +964,16 @@
                         // Placing next orb
                         gameState.board[cell.y][cell.x] = gameState.nextOrb;
                         gameState.moves++;
+                        gameState.remainingMoves--;
+                        
+                        // Check if we've hit the move cap
+                        if (gameState.remainingMoves <= 0) {
+                            gameState.isGameOver = true;
+                            gameState.isTurnActive = false;
+                            showGameOver();
+                            return;
+                        }
+                        
                         endTurn();
                     } else {
                         // Check if cells are adjacent
@@ -1036,6 +1063,10 @@
                 }
             }
             
+            // Calculate move cap based on daily seed
+            const moveCapRNG = new Mulberry32(getDailySeed());
+            const moveCap = Math.floor(moveCapRNG.next() * 11) + 25; // Random between 25-35
+            
             // Initialize game state with default values
             gameState = {
                 board: board,
@@ -1048,7 +1079,9 @@
                 crystals: 0,
                 highestOrbs: new Set(),
                 currentTurn: 0,
-                isTurnActive: true
+                isTurnActive: true,
+                moveCap: moveCap, // Add move cap to game state
+                remainingMoves: moveCap // Track remaining moves
             };
             
             // Make gameState available globally
@@ -1058,68 +1091,42 @@
         function checkFusions() {
             let hasFusion = false;
             let chainLength = 0;
+            let fusionPoints = []; // Track points where fusions occurred
             
-            // Check for horizontal fusions
-            for (let y = 0; y < GRID_HEIGHT; y++) {
-                for (let x = 0; x < GRID_WIDTH - 2; x++) {
-                    const value = gameState.board[y][x];
-                    // Skip if the value is a crystal (-1) or 0
-                    if (value <= 0) continue;
-                    
-                    if (value === gameState.board[y][x + 1] && value === gameState.board[y][x + 2]) {
-                        // Found a fusion
-                        hasFusion = true;
-                        chainLength++;
-                        
-                        // Play fusion sound
-                        playSound('chime');
-                        
-                        // Calculate new orb value
-                        let newValue = value + 1;
-                        if (newValue > 6) {
-                            newValue = -1; // Crystal
-                            playSound('bell', { volume: 0.5 });
-                        }
-                        
-                        // Update board
-                        gameState.board[y][x] = newValue;
-                        gameState.board[y][x + 1] = 0;
-                        gameState.board[y][x + 2] = 0;
-                        
-                        // Update score
-                        gameState.score += value * value;
-                        
-                        // Track highest orb
-                        if (value > 0) {
-                            gameState.highestOrbs.add(value);
-                        }
-                        
-                        // Track crystals
-                        if (newValue === -1) {
-                            gameState.crystals++;
-                        }
-                        
-                        // Add fusion animation and particles
-                        const cellX = padding + (x * cellWidth) + cellWidth/2;
-                        const cellY = padding + (y * cellHeight) + cellHeight/2;
-                        visualEffects.addFusionAnimation(cellX, cellY, value);
-                        visualEffects.createParticle(cellX, cellY, 'pop');
-                        if (newValue === -1) {
-                            visualEffects.createParticle(cellX, cellY, 'sparkle');
-                        }
-                    }
-                }
+            // Helper function to check for clusters
+            function checkCluster(x, y, value) {
+                if (x < 0 || x >= GRID_WIDTH || y < 0 || y >= GRID_HEIGHT) return false;
+                return gameState.board[y][x] === value;
             }
             
-            // Check for vertical fusions
-            for (let x = 0; x < GRID_WIDTH; x++) {
-                for (let y = 0; y < GRID_HEIGHT - 2; y++) {
+            // Helper function to find all connected orbs of same value
+            function findConnectedOrbs(x, y, value, visited = new Set()) {
+                const key = `${x},${y}`;
+                if (visited.has(key)) return [];
+                visited.add(key);
+                
+                const connected = [{x, y}];
+                const directions = [[0, 1], [1, 0], [0, -1], [-1, 0]];
+                
+                for (const [dx, dy] of directions) {
+                    const nx = x + dx;
+                    const ny = y + dy;
+                    if (checkCluster(nx, ny, value)) {
+                        connected.push(...findConnectedOrbs(nx, ny, value, visited));
+                    }
+                }
+                
+                return connected;
+            }
+            
+            // Check for clusters
+            for (let y = 0; y < GRID_HEIGHT; y++) {
+                for (let x = 0; x < GRID_WIDTH; x++) {
                     const value = gameState.board[y][x];
-                    // Skip if the value is a crystal (-1) or 0
                     if (value <= 0) continue;
                     
-                    if (value === gameState.board[y + 1][x] && value === gameState.board[y + 2][x]) {
-                        // Found a fusion
+                    const connected = findConnectedOrbs(x, y, value);
+                    if (connected.length >= 3) {
                         hasFusion = true;
                         chainLength++;
                         
@@ -1131,12 +1138,16 @@
                         if (newValue > 6) {
                             newValue = -1; // Crystal
                             playSound('bell', { volume: 0.5 });
+                            gameState.score += CRYSTAL_BONUS; // Add crystal bonus
                         }
                         
                         // Update board
                         gameState.board[y][x] = newValue;
-                        gameState.board[y + 1][x] = 0;
-                        gameState.board[y + 2][x] = 0;
+                        connected.forEach(({x: cx, y: cy}) => {
+                            if (cx !== x || cy !== y) {
+                                gameState.board[cy][cx] = 0;
+                            }
+                        });
                         
                         // Update score
                         gameState.score += value * value;
@@ -1159,6 +1170,8 @@
                         if (newValue === -1) {
                             visualEffects.createParticle(cellX, cellY, 'sparkle');
                         }
+                        
+                        fusionPoints.push({x, y, value: newValue});
                     }
                 }
             }
@@ -1332,13 +1345,23 @@
             finalOrbs.textContent = Array.from(gameState.highestOrbs).sort((a, b) => b - a).join(', ');
             finalCrystals.textContent = gameState.crystals;
             
-            // Generate share string only for daily mode
-            if (!gameState.isPractice) {
+            // Check if the run is completed (either move cap reached or board full)
+            const hasEmptyCells = gameState.board.some(row => row.some(cell => cell === 0));
+            const isCompleted = gameState.remainingMoves <= 0 || !hasEmptyCells;
+            
+            // Generate share string only for daily mode and completed runs
+            if (!gameState.isPractice && isCompleted) {
                 const shareText = generateShareString();
                 shareString.textContent = shareText;
                 document.getElementById('shareString').style.display = 'block';
             } else {
                 document.getElementById('shareString').style.display = 'none';
+            }
+            
+            // Show practice tip if in practice mode
+            if (gameState.isPractice) {
+                const randomTip = PRACTICE_TIPS[Math.floor(Math.random() * PRACTICE_TIPS.length)];
+                finalOrbs.textContent = `Tip: ${randomTip}`;
             }
             
             // Show game over screen
